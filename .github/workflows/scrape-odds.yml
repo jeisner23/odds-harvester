@@ -35,8 +35,8 @@ jobs:
           python src/main.py scrape_upcoming \
             --sport football \
             --date ${{ steps.dates.outputs.TODAY }} \
-            --leagues premier-league,championship,league-one,league-two,la-liga,la-liga-2,bundesliga,2-bundesliga,serie-a,serie-b,ligue-1,ligue-2,eredivisie,primeira-liga,jupiler-pro-league,super-lig,scottish-premiership,scottish-championship \
-            --markets 1x2,over_under,btts \
+            --leagues england-premier-league,england-championship,england-league-one,england-league-two,spain-laliga,spain-laliga2,germany-bundesliga,germany-2-bundesliga,italy-serie-a,italy-serie-b,france-ligue-1,france-ligue-2,netherlands-eredivisie,portugal-liga-portugal,belgium-jupiler-pro-league,turkey-super-lig,scotland-premiership,scotland-championship \
+            --markets 1x2,over_under_2_5,btts \
             --headless \
             --file_path data/europe_major_today.json \
             --format json \
@@ -50,8 +50,8 @@ jobs:
           python src/main.py scrape_upcoming \
             --sport football \
             --date ${{ steps.dates.outputs.TOMORROW }} \
-            --leagues premier-league,championship,league-one,league-two,la-liga,la-liga-2,bundesliga,2-bundesliga,serie-a,serie-b,ligue-1,ligue-2,eredivisie,primeira-liga,jupiler-pro-league,super-lig,scottish-premiership,scottish-championship \
-            --markets 1x2,over_under,btts \
+            --leagues england-premier-league,england-championship,england-league-one,england-league-two,spain-laliga,spain-laliga2,germany-bundesliga,germany-2-bundesliga,italy-serie-a,italy-serie-b,france-ligue-1,france-ligue-2,netherlands-eredivisie,portugal-liga-portugal,belgium-jupiler-pro-league,turkey-super-lig,scotland-premiership,scotland-championship \
+            --markets 1x2,over_under_2_5,btts \
             --headless \
             --file_path data/europe_major_tomorrow.json \
             --format json \
@@ -93,8 +93,8 @@ jobs:
           python src/main.py scrape_upcoming \
             --sport football \
             --date ${{ steps.dates.outputs.TODAY }} \
-            --leagues superliga,eliteserien,allsvenskan,ekstraklasa,1-liga,fortuna-liga,bundesliga-austria,super-league-switzerland,super-league-greece,superliga-romania,hnl,superliga-serbia,premier-league-ukraine,russian-premier-league,veikkausliiga \
-            --markets 1x2,over_under,btts \
+            --leagues denmark-superliga,norway-eliteserien,sweden-allsvenskan,poland-ekstraklasa,czech-republic-czech-liga,austria-bundesliga,switzerland-super-league,greece-super-league,romania-superliga,croatia-hnl,serbia-super-liga,ukraine-premier-league,russia-premier-league,finland-veikkausliiga \
+            --markets 1x2,over_under_2_5,btts \
             --headless \
             --file_path data/europe_secondary_today.json \
             --format json \
@@ -108,8 +108,8 @@ jobs:
           python src/main.py scrape_upcoming \
             --sport football \
             --date ${{ steps.dates.outputs.TOMORROW }} \
-            --leagues superliga,eliteserien,allsvenskan,ekstraklasa,1-liga,fortuna-liga,bundesliga-austria,super-league-switzerland,super-league-greece,superliga-romania,hnl,superliga-serbia,premier-league-ukraine,russian-premier-league,veikkausliiga \
-            --markets 1x2,over_under,btts \
+            --leagues denmark-superliga,norway-eliteserien,sweden-allsvenskan,poland-ekstraklasa,czech-republic-czech-liga,austria-bundesliga,switzerland-super-league,greece-super-league,romania-superliga,croatia-hnl,serbia-super-liga,ukraine-premier-league,russia-premier-league,finland-veikkausliiga \
+            --markets 1x2,over_under_2_5,btts \
             --headless \
             --file_path data/europe_secondary_tomorrow.json \
             --format json \
@@ -151,8 +151,8 @@ jobs:
           python src/main.py scrape_upcoming \
             --sport football \
             --date ${{ steps.dates.outputs.TODAY }} \
-            --leagues ligat-haal,first-division,parva-liga,super-league-albania,premijer-liga-bih,vysshaya-liga,a-lyga,virsliga,meistriliiga,prva-liga,nifl-premiership,cymru-premier \
-            --markets 1x2,over_under,btts \
+            --leagues israel-ligat-haal,cyprus-1-division,bulgaria-first-league,albania-superliga,bosnia-herzegovina-premijer-liga,belarus-vysshaya-liga,lithuania-a-lyga,latvia-virsliga,estonia-meistriliiga,slovenia-1-snl,northern-ireland-premiership,wales-premier-league \
+            --markets 1x2,over_under_2_5,btts \
             --headless \
             --file_path data/europe_small_today.json \
             --format json \
@@ -166,8 +166,8 @@ jobs:
           python src/main.py scrape_upcoming \
             --sport football \
             --date ${{ steps.dates.outputs.TOMORROW }} \
-            --leagues ligat-haal,first-division,parva-liga,super-league-albania,premijer-liga-bih,vysshaya-liga,a-lyga,virsliga,meistriliiga,prva-liga,nifl-premiership,cymru-premier \
-            --markets 1x2,over_under,btts \
+            --leagues israel-ligat-haal,cyprus-1-division,bulgaria-first-league,albania-superliga,bosnia-herzegovina-premijer-liga,belarus-vysshaya-liga,lithuania-a-lyga,latvia-virsliga,estonia-meistriliiga,slovenia-1-snl,northern-ireland-premiership,wales-premier-league \
+            --markets 1x2,over_under_2_5,btts \
             --headless \
             --file_path data/europe_small_tomorrow.json \
             --format json \
@@ -209,8 +209,8 @@ jobs:
           python src/main.py scrape_upcoming \
             --sport football \
             --date ${{ steps.dates.outputs.TODAY }} \
-            --leagues champions-league,europa-league,conference-league,euro,euro-qualification,nations-league,world-cup,world-cup-qualification-europe,world-cup-qualification-south-america,world-cup-qualification-africa,world-cup-qualification-asia,world-cup-qualification-concacaf \
-            --markets 1x2,over_under,btts \
+            --leagues europe-champions-league,europe-europa-league,europe-europa-conference-league,europe-euro,europe-euro-qualification,europe-nations-league,world-world-cup,world-world-cup-qualification-europe,world-world-cup-qualification-south-america,world-world-cup-qualification-africa,world-world-cup-qualification-asia,world-world-cup-qualification-concacaf \
+            --markets 1x2,over_under_2_5,btts \
             --headless \
             --file_path data/uefa_today.json \
             --format json \
@@ -224,8 +224,8 @@ jobs:
           python src/main.py scrape_upcoming \
             --sport football \
             --date ${{ steps.dates.outputs.TOMORROW }} \
-            --leagues champions-league,europa-league,conference-league,euro,euro-qualification,nations-league,world-cup,world-cup-qualification-europe,world-cup-qualification-south-america,world-cup-qualification-africa,world-cup-qualification-asia,world-cup-qualification-concacaf \
-            --markets 1x2,over_under,btts \
+            --leagues europe-champions-league,europe-europa-league,europe-europa-conference-league,europe-euro,europe-euro-qualification,europe-nations-league,world-world-cup,world-world-cup-qualification-europe,world-world-cup-qualification-south-america,world-world-cup-qualification-africa,world-world-cup-qualification-asia,world-world-cup-qualification-concacaf \
+            --markets 1x2,over_under_2_5,btts \
             --headless \
             --file_path data/uefa_tomorrow.json \
             --format json \
@@ -267,8 +267,8 @@ jobs:
           python src/main.py scrape_upcoming \
             --sport football \
             --date ${{ steps.dates.outputs.TODAY }} \
-            --leagues mls,usl-championship,liga-mx,liga-expansion-mx,cpl,concacaf-champions-cup,concacaf-league,liga-nacional-guatemala,primera-division-costa-rica \
-            --markets 1x2,over_under,btts \
+            --leagues usa-mls,usa-usl-championship,mexico-liga-mx,mexico-liga-de-expansion-mx,canada-canadian-premier-league,north-central-america-concacaf-champions-cup,north-central-america-concacaf-league,guatemala-liga-nacional,costa-rica-primera-division \
+            --markets 1x2,over_under_2_5,btts \
             --headless \
             --file_path data/americas_north_today.json \
             --format json \
@@ -282,8 +282,8 @@ jobs:
           python src/main.py scrape_upcoming \
             --sport football \
             --date ${{ steps.dates.outputs.TOMORROW }} \
-            --leagues mls,usl-championship,liga-mx,liga-expansion-mx,cpl,concacaf-champions-cup,concacaf-league,liga-nacional-guatemala,primera-division-costa-rica \
-            --markets 1x2,over_under,btts \
+            --leagues usa-mls,usa-usl-championship,mexico-liga-mx,mexico-liga-de-expansion-mx,canada-canadian-premier-league,north-central-america-concacaf-champions-cup,north-central-america-concacaf-league,guatemala-liga-nacional,costa-rica-primera-division \
+            --markets 1x2,over_under_2_5,btts \
             --headless \
             --file_path data/americas_north_tomorrow.json \
             --format json \
@@ -325,8 +325,8 @@ jobs:
           python src/main.py scrape_upcoming \
             --sport football \
             --date ${{ steps.dates.outputs.TODAY }} \
-            --leagues serie-a-brazil,serie-b-brazil,copa-do-brasil,primera-division-argentina,primera-nacional,liga-profesional-chile,liga-betplay,liga-1-peru,ligapro-ecuador,primera-division-uruguay,primera-division-paraguay,copa-libertadores,copa-sudamericana \
-            --markets 1x2,over_under,btts \
+            --leagues brazil-serie-a,brazil-serie-b,brazil-copa-do-brasil,argentina-liga-profesional,argentina-primera-nacional,chile-primera-division,colombia-primera-a,peru-liga-1,ecuador-liga-pro,uruguay-primera-division,paraguay-primera-division,south-america-copa-libertadores,south-america-copa-sudamericana \
+            --markets 1x2,over_under_2_5,btts \
             --headless \
             --file_path data/americas_south_today.json \
             --format json \
@@ -340,8 +340,8 @@ jobs:
           python src/main.py scrape_upcoming \
             --sport football \
             --date ${{ steps.dates.outputs.TOMORROW }} \
-            --leagues serie-a-brazil,serie-b-brazil,copa-do-brasil,primera-division-argentina,primera-nacional,liga-profesional-chile,liga-betplay,liga-1-peru,ligapro-ecuador,primera-division-uruguay,primera-division-paraguay,copa-libertadores,copa-sudamericana \
-            --markets 1x2,over_under,btts \
+            --leagues brazil-serie-a,brazil-serie-b,brazil-copa-do-brasil,argentina-liga-profesional,argentina-primera-nacional,chile-primera-division,colombia-primera-a,peru-liga-1,ecuador-liga-pro,uruguay-primera-division,paraguay-primera-division,south-america-copa-libertadores,south-america-copa-sudamericana \
+            --markets 1x2,over_under_2_5,btts \
             --headless \
             --file_path data/americas_south_tomorrow.json \
             --format json \
@@ -383,8 +383,8 @@ jobs:
           python src/main.py scrape_upcoming \
             --sport football \
             --date ${{ steps.dates.outputs.TODAY }} \
-            --leagues j1-league,j2-league,j3-league,k-league-1,k-league-2,chinese-super-league,v-league-1,thai-league,malaysian-super-league,singapore-premier-league,indonesia-liga-1,afc-champions-league \
-            --markets 1x2,over_under,btts \
+            --leagues japan-j1-league,japan-j2-league,japan-j3-league,south-korea-k-league-1,south-korea-k-league-2,china-super-league,vietnam-v-league-1,thailand-thai-league-1,malaysia-super-league,singapore-premier-league,indonesia-liga-1,asia-afc-champions-league-elite \
+            --markets 1x2,over_under_2_5,btts \
             --headless \
             --file_path data/asia_east_today.json \
             --format json \
@@ -398,8 +398,8 @@ jobs:
           python src/main.py scrape_upcoming \
             --sport football \
             --date ${{ steps.dates.outputs.TOMORROW }} \
-            --leagues j1-league,j2-league,j3-league,k-league-1,k-league-2,chinese-super-league,v-league-1,thai-league,malaysian-super-league,singapore-premier-league,indonesia-liga-1,afc-champions-league \
-            --markets 1x2,over_under,btts \
+            --leagues japan-j1-league,japan-j2-league,japan-j3-league,south-korea-k-league-1,south-korea-k-league-2,china-super-league,vietnam-v-league-1,thailand-thai-league-1,malaysia-super-league,singapore-premier-league,indonesia-liga-1,asia-afc-champions-league-elite \
+            --markets 1x2,over_under_2_5,btts \
             --headless \
             --file_path data/asia_east_tomorrow.json \
             --format json \
@@ -441,8 +441,8 @@ jobs:
           python src/main.py scrape_upcoming \
             --sport football \
             --date ${{ steps.dates.outputs.TODAY }} \
-            --leagues saudi-pro-league,stars-league,uae-pro-league,kuwait-premier-league,bahrain-premier-league,iraqi-premier-league,persian-gulf-pro-league,indian-super-league,i-league,uzbekistan-super-league,kazakhstan-premier-league \
-            --markets 1x2,over_under,btts \
+            --leagues saudi-arabia-saudi-pro-league,qatar-stars-league,uae-pro-league,kuwait-premier-league,bahrain-premier-league,iraq-stars-league,iran-persian-gulf-pro-league,india-super-league,uzbekistan-super-league,kazakhstan-premier-league \
+            --markets 1x2,over_under_2_5,btts \
             --headless \
             --file_path data/asia_west_today.json \
             --format json \
@@ -456,8 +456,8 @@ jobs:
           python src/main.py scrape_upcoming \
             --sport football \
             --date ${{ steps.dates.outputs.TOMORROW }} \
-            --leagues saudi-pro-league,stars-league,uae-pro-league,kuwait-premier-league,bahrain-premier-league,iraqi-premier-league,persian-gulf-pro-league,indian-super-league,i-league,uzbekistan-super-league,kazakhstan-premier-league \
-            --markets 1x2,over_under,btts \
+            --leagues saudi-arabia-saudi-pro-league,qatar-stars-league,uae-pro-league,kuwait-premier-league,bahrain-premier-league,iraq-stars-league,iran-persian-gulf-pro-league,india-super-league,uzbekistan-super-league,kazakhstan-premier-league \
+            --markets 1x2,over_under_2_5,btts \
             --headless \
             --file_path data/asia_west_tomorrow.json \
             --format json \
@@ -499,8 +499,8 @@ jobs:
           python src/main.py scrape_upcoming \
             --sport football \
             --date ${{ steps.dates.outputs.TODAY }} \
-            --leagues premier-league-egypt,botola-pro,ligue-1-tunisia,premier-soccer-league,premier-league-algeria,ghana-premier-league,npfl,caf-champions-league,caf-confederation-cup,a-league \
-            --markets 1x2,over_under,btts \
+            --leagues egypt-premier-league,morocco-botola-pro,tunisia-ligue-1,south-africa-premier-soccer-league,algeria-ligue-1,ghana-premier-league,nigeria-npfl,africa-caf-champions-league,africa-caf-confederation-cup,australia-a-league \
+            --markets 1x2,over_under_2_5,btts \
             --headless \
             --file_path data/africa_oceania_today.json \
             --format json \
@@ -514,8 +514,8 @@ jobs:
           python src/main.py scrape_upcoming \
             --sport football \
             --date ${{ steps.dates.outputs.TOMORROW }} \
-            --leagues premier-league-egypt,botola-pro,ligue-1-tunisia,premier-soccer-league,premier-league-algeria,ghana-premier-league,npfl,caf-champions-league,caf-confederation-cup,a-league \
-            --markets 1x2,over_under,btts \
+            --leagues egypt-premier-league,morocco-botola-pro,tunisia-ligue-1,south-africa-premier-soccer-league,algeria-ligue-1,ghana-premier-league,nigeria-npfl,africa-caf-champions-league,africa-caf-confederation-cup,australia-a-league \
+            --markets 1x2,over_under_2_5,btts \
             --headless \
             --file_path data/africa_oceania_tomorrow.json \
             --format json \
