@@ -1,14 +1,27 @@
-name: Scrape Soccer Odds
+name: Scrape Soccer Odds (7-Day Tiered)
 
 on:
   schedule:
-    - cron: '0 */6 * * *'
+    # Tier 1 (Today + Tomorrow): Every 4 hours - most accurate
+    - cron: '0 */4 * * *'
   workflow_dispatch:
+    inputs:
+      tier:
+        description: 'Which tier to run (1=today+tomorrow, 2=days3-4, 3=days5-7, all=everything)'
+        required: false
+        default: 'all'
+
+# Tier refresh strategy:
+# - Tier 1 (Today + Tomorrow): Every 4 hours via cron
+# - Tier 2 (Days 3-4): Every 8 hours via separate workflow  
+# - Tier 3 (Days 5-7): Once daily via separate workflow
+# This workflow handles Tier 1; see scrape-odds-extended.yml for Tiers 2-3
 
 jobs:
-  europe-major:
+  day-0:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 45
+    if: github.event.inputs.tier == 'all' || github.event.inputs.tier == '1' || github.event.inputs.tier == ''
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -21,52 +34,35 @@ jobs:
           playwright install chromium
           playwright install-deps chromium
       
-      - name: Set dates
-        id: dates
-        run: |
-          echo "TODAY=$(date -u +%Y%m%d)" >> $GITHUB_OUTPUT
-          echo "TOMORROW=$(date -u -d '+1 day' +%Y%m%d)" >> $GITHUB_OUTPUT
+      - name: Get date
+        id: date
+        run: echo "DATE=$(date -u +%Y%m%d)" >> $GITHUB_OUTPUT
       
-      - name: Scrape Europe Major - Today
+      - name: Scrape Day 0 (Today)
         continue-on-error: true
         env:
           PYTHONPATH: ${{ github.workspace }}
         run: |
           python src/main.py scrape_upcoming \
             --sport football \
-            --date ${{ steps.dates.outputs.TODAY }} \
-            --leagues england-premier-league,england-championship,england-league-one,england-league-two,spain-laliga,spain-laliga2,germany-bundesliga,germany-2-bundesliga,italy-serie-a,italy-serie-b,france-ligue-1,france-ligue-2,netherlands-eredivisie,portugal-liga-portugal,belgium-jupiler-pro-league,turkey-super-lig,scotland-premiership,scotland-championship \
+            --date ${{ steps.date.outputs.DATE }} \
             --markets 1x2,over_under_2_5,btts \
             --headless \
-            --file_path data/europe_major_today.json \
+            --file_path data/day0.json \
             --format json \
-            --concurrency_tasks 3
-      
-      - name: Scrape Europe Major - Tomorrow
-        continue-on-error: true
-        env:
-          PYTHONPATH: ${{ github.workspace }}
-        run: |
-          python src/main.py scrape_upcoming \
-            --sport football \
-            --date ${{ steps.dates.outputs.TOMORROW }} \
-            --leagues england-premier-league,england-championship,england-league-one,england-league-two,spain-laliga,spain-laliga2,germany-bundesliga,germany-2-bundesliga,italy-serie-a,italy-serie-b,france-ligue-1,france-ligue-2,netherlands-eredivisie,portugal-liga-portugal,belgium-jupiler-pro-league,turkey-super-lig,scotland-premiership,scotland-championship \
-            --markets 1x2,over_under_2_5,btts \
-            --headless \
-            --file_path data/europe_major_tomorrow.json \
-            --format json \
-            --concurrency_tasks 3
+            --concurrency_tasks 5
       
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: europe-major
+          name: day-0
           path: data/*.json
           retention-days: 1
 
-  europe-secondary:
+  day-1:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 45
+    if: github.event.inputs.tier == 'all' || github.event.inputs.tier == '1' || github.event.inputs.tier == ''
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -79,52 +75,35 @@ jobs:
           playwright install chromium
           playwright install-deps chromium
       
-      - name: Set dates
-        id: dates
-        run: |
-          echo "TODAY=$(date -u +%Y%m%d)" >> $GITHUB_OUTPUT
-          echo "TOMORROW=$(date -u -d '+1 day' +%Y%m%d)" >> $GITHUB_OUTPUT
+      - name: Get date
+        id: date
+        run: echo "DATE=$(date -u -d '+1 day' +%Y%m%d)" >> $GITHUB_OUTPUT
       
-      - name: Scrape Europe Secondary - Today
+      - name: Scrape Day 1 (Tomorrow)
         continue-on-error: true
         env:
           PYTHONPATH: ${{ github.workspace }}
         run: |
           python src/main.py scrape_upcoming \
             --sport football \
-            --date ${{ steps.dates.outputs.TODAY }} \
-            --leagues denmark-superliga,norway-eliteserien,sweden-allsvenskan,poland-ekstraklasa,czech-republic-czech-liga,austria-bundesliga,switzerland-super-league,greece-super-league,romania-superliga,croatia-hnl,serbia-super-liga,ukraine-premier-league,russia-premier-league,finland-veikkausliiga \
+            --date ${{ steps.date.outputs.DATE }} \
             --markets 1x2,over_under_2_5,btts \
             --headless \
-            --file_path data/europe_secondary_today.json \
+            --file_path data/day1.json \
             --format json \
-            --concurrency_tasks 3
-      
-      - name: Scrape Europe Secondary - Tomorrow
-        continue-on-error: true
-        env:
-          PYTHONPATH: ${{ github.workspace }}
-        run: |
-          python src/main.py scrape_upcoming \
-            --sport football \
-            --date ${{ steps.dates.outputs.TOMORROW }} \
-            --leagues denmark-superliga,norway-eliteserien,sweden-allsvenskan,poland-ekstraklasa,czech-republic-czech-liga,austria-bundesliga,switzerland-super-league,greece-super-league,romania-superliga,croatia-hnl,serbia-super-liga,ukraine-premier-league,russia-premier-league,finland-veikkausliiga \
-            --markets 1x2,over_under_2_5,btts \
-            --headless \
-            --file_path data/europe_secondary_tomorrow.json \
-            --format json \
-            --concurrency_tasks 3
+            --concurrency_tasks 5
       
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: europe-secondary
+          name: day-1
           path: data/*.json
           retention-days: 1
 
-  europe-small:
+  day-2:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 45
+    if: github.event.inputs.tier == 'all' || github.event.inputs.tier == '1' || github.event.inputs.tier == ''
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -137,52 +116,35 @@ jobs:
           playwright install chromium
           playwright install-deps chromium
       
-      - name: Set dates
-        id: dates
-        run: |
-          echo "TODAY=$(date -u +%Y%m%d)" >> $GITHUB_OUTPUT
-          echo "TOMORROW=$(date -u -d '+1 day' +%Y%m%d)" >> $GITHUB_OUTPUT
+      - name: Get date
+        id: date
+        run: echo "DATE=$(date -u -d '+2 days' +%Y%m%d)" >> $GITHUB_OUTPUT
       
-      - name: Scrape Europe Small - Today
+      - name: Scrape Day 2
         continue-on-error: true
         env:
           PYTHONPATH: ${{ github.workspace }}
         run: |
           python src/main.py scrape_upcoming \
             --sport football \
-            --date ${{ steps.dates.outputs.TODAY }} \
-            --leagues israel-ligat-haal,cyprus-1-division,bulgaria-first-league,albania-superliga,bosnia-herzegovina-premijer-liga,belarus-vysshaya-liga,lithuania-a-lyga,latvia-virsliga,estonia-meistriliiga,slovenia-1-snl,northern-ireland-premiership,wales-premier-league \
+            --date ${{ steps.date.outputs.DATE }} \
             --markets 1x2,over_under_2_5,btts \
             --headless \
-            --file_path data/europe_small_today.json \
+            --file_path data/day2.json \
             --format json \
-            --concurrency_tasks 3
-      
-      - name: Scrape Europe Small - Tomorrow
-        continue-on-error: true
-        env:
-          PYTHONPATH: ${{ github.workspace }}
-        run: |
-          python src/main.py scrape_upcoming \
-            --sport football \
-            --date ${{ steps.dates.outputs.TOMORROW }} \
-            --leagues israel-ligat-haal,cyprus-1-division,bulgaria-first-league,albania-superliga,bosnia-herzegovina-premijer-liga,belarus-vysshaya-liga,lithuania-a-lyga,latvia-virsliga,estonia-meistriliiga,slovenia-1-snl,northern-ireland-premiership,wales-premier-league \
-            --markets 1x2,over_under_2_5,btts \
-            --headless \
-            --file_path data/europe_small_tomorrow.json \
-            --format json \
-            --concurrency_tasks 3
+            --concurrency_tasks 5
       
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: europe-small
+          name: day-2
           path: data/*.json
           retention-days: 1
 
-  uefa:
+  day-3:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 45
+    if: github.event.inputs.tier == 'all' || github.event.inputs.tier == '2' || github.event.inputs.tier == ''
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -195,52 +157,35 @@ jobs:
           playwright install chromium
           playwright install-deps chromium
       
-      - name: Set dates
-        id: dates
-        run: |
-          echo "TODAY=$(date -u +%Y%m%d)" >> $GITHUB_OUTPUT
-          echo "TOMORROW=$(date -u -d '+1 day' +%Y%m%d)" >> $GITHUB_OUTPUT
+      - name: Get date
+        id: date
+        run: echo "DATE=$(date -u -d '+3 days' +%Y%m%d)" >> $GITHUB_OUTPUT
       
-      - name: Scrape UEFA - Today
+      - name: Scrape Day 3
         continue-on-error: true
         env:
           PYTHONPATH: ${{ github.workspace }}
         run: |
           python src/main.py scrape_upcoming \
             --sport football \
-            --date ${{ steps.dates.outputs.TODAY }} \
-            --leagues europe-champions-league,europe-europa-league,europe-europa-conference-league,europe-euro,europe-euro-qualification,europe-nations-league,world-world-cup,world-world-cup-qualification-europe,world-world-cup-qualification-south-america,world-world-cup-qualification-africa,world-world-cup-qualification-asia,world-world-cup-qualification-concacaf \
+            --date ${{ steps.date.outputs.DATE }} \
             --markets 1x2,over_under_2_5,btts \
             --headless \
-            --file_path data/uefa_today.json \
+            --file_path data/day3.json \
             --format json \
-            --concurrency_tasks 3
-      
-      - name: Scrape UEFA - Tomorrow
-        continue-on-error: true
-        env:
-          PYTHONPATH: ${{ github.workspace }}
-        run: |
-          python src/main.py scrape_upcoming \
-            --sport football \
-            --date ${{ steps.dates.outputs.TOMORROW }} \
-            --leagues europe-champions-league,europe-europa-league,europe-europa-conference-league,europe-euro,europe-euro-qualification,europe-nations-league,world-world-cup,world-world-cup-qualification-europe,world-world-cup-qualification-south-america,world-world-cup-qualification-africa,world-world-cup-qualification-asia,world-world-cup-qualification-concacaf \
-            --markets 1x2,over_under_2_5,btts \
-            --headless \
-            --file_path data/uefa_tomorrow.json \
-            --format json \
-            --concurrency_tasks 3
+            --concurrency_tasks 5
       
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: uefa
+          name: day-3
           path: data/*.json
           retention-days: 1
 
-  americas-north:
+  day-4:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 45
+    if: github.event.inputs.tier == 'all' || github.event.inputs.tier == '2' || github.event.inputs.tier == ''
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -253,52 +198,35 @@ jobs:
           playwright install chromium
           playwright install-deps chromium
       
-      - name: Set dates
-        id: dates
-        run: |
-          echo "TODAY=$(date -u +%Y%m%d)" >> $GITHUB_OUTPUT
-          echo "TOMORROW=$(date -u -d '+1 day' +%Y%m%d)" >> $GITHUB_OUTPUT
+      - name: Get date
+        id: date
+        run: echo "DATE=$(date -u -d '+4 days' +%Y%m%d)" >> $GITHUB_OUTPUT
       
-      - name: Scrape Americas North - Today
+      - name: Scrape Day 4
         continue-on-error: true
         env:
           PYTHONPATH: ${{ github.workspace }}
         run: |
           python src/main.py scrape_upcoming \
             --sport football \
-            --date ${{ steps.dates.outputs.TODAY }} \
-            --leagues usa-mls,usa-usl-championship,mexico-liga-mx,mexico-liga-de-expansion-mx,canada-canadian-premier-league,north-central-america-concacaf-champions-cup,north-central-america-concacaf-league,guatemala-liga-nacional,costa-rica-primera-division \
+            --date ${{ steps.date.outputs.DATE }} \
             --markets 1x2,over_under_2_5,btts \
             --headless \
-            --file_path data/americas_north_today.json \
+            --file_path data/day4.json \
             --format json \
-            --concurrency_tasks 3
-      
-      - name: Scrape Americas North - Tomorrow
-        continue-on-error: true
-        env:
-          PYTHONPATH: ${{ github.workspace }}
-        run: |
-          python src/main.py scrape_upcoming \
-            --sport football \
-            --date ${{ steps.dates.outputs.TOMORROW }} \
-            --leagues usa-mls,usa-usl-championship,mexico-liga-mx,mexico-liga-de-expansion-mx,canada-canadian-premier-league,north-central-america-concacaf-champions-cup,north-central-america-concacaf-league,guatemala-liga-nacional,costa-rica-primera-division \
-            --markets 1x2,over_under_2_5,btts \
-            --headless \
-            --file_path data/americas_north_tomorrow.json \
-            --format json \
-            --concurrency_tasks 3
+            --concurrency_tasks 5
       
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: americas-north
+          name: day-4
           path: data/*.json
           retention-days: 1
 
-  americas-south:
+  day-5:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 45
+    if: github.event.inputs.tier == 'all' || github.event.inputs.tier == '3' || github.event.inputs.tier == ''
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -311,52 +239,35 @@ jobs:
           playwright install chromium
           playwright install-deps chromium
       
-      - name: Set dates
-        id: dates
-        run: |
-          echo "TODAY=$(date -u +%Y%m%d)" >> $GITHUB_OUTPUT
-          echo "TOMORROW=$(date -u -d '+1 day' +%Y%m%d)" >> $GITHUB_OUTPUT
+      - name: Get date
+        id: date
+        run: echo "DATE=$(date -u -d '+5 days' +%Y%m%d)" >> $GITHUB_OUTPUT
       
-      - name: Scrape Americas South - Today
+      - name: Scrape Day 5
         continue-on-error: true
         env:
           PYTHONPATH: ${{ github.workspace }}
         run: |
           python src/main.py scrape_upcoming \
             --sport football \
-            --date ${{ steps.dates.outputs.TODAY }} \
-            --leagues brazil-serie-a,brazil-serie-b,brazil-copa-do-brasil,argentina-liga-profesional,argentina-primera-nacional,chile-primera-division,colombia-primera-a,peru-liga-1,ecuador-liga-pro,uruguay-primera-division,paraguay-primera-division,south-america-copa-libertadores,south-america-copa-sudamericana \
+            --date ${{ steps.date.outputs.DATE }} \
             --markets 1x2,over_under_2_5,btts \
             --headless \
-            --file_path data/americas_south_today.json \
+            --file_path data/day5.json \
             --format json \
-            --concurrency_tasks 3
-      
-      - name: Scrape Americas South - Tomorrow
-        continue-on-error: true
-        env:
-          PYTHONPATH: ${{ github.workspace }}
-        run: |
-          python src/main.py scrape_upcoming \
-            --sport football \
-            --date ${{ steps.dates.outputs.TOMORROW }} \
-            --leagues brazil-serie-a,brazil-serie-b,brazil-copa-do-brasil,argentina-liga-profesional,argentina-primera-nacional,chile-primera-division,colombia-primera-a,peru-liga-1,ecuador-liga-pro,uruguay-primera-division,paraguay-primera-division,south-america-copa-libertadores,south-america-copa-sudamericana \
-            --markets 1x2,over_under_2_5,btts \
-            --headless \
-            --file_path data/americas_south_tomorrow.json \
-            --format json \
-            --concurrency_tasks 3
+            --concurrency_tasks 5
       
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: americas-south
+          name: day-5
           path: data/*.json
           retention-days: 1
 
-  asia-east:
+  day-6:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 45
+    if: github.event.inputs.tier == 'all' || github.event.inputs.tier == '3' || github.event.inputs.tier == ''
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -369,167 +280,33 @@ jobs:
           playwright install chromium
           playwright install-deps chromium
       
-      - name: Set dates
-        id: dates
-        run: |
-          echo "TODAY=$(date -u +%Y%m%d)" >> $GITHUB_OUTPUT
-          echo "TOMORROW=$(date -u -d '+1 day' +%Y%m%d)" >> $GITHUB_OUTPUT
+      - name: Get date
+        id: date
+        run: echo "DATE=$(date -u -d '+6 days' +%Y%m%d)" >> $GITHUB_OUTPUT
       
-      - name: Scrape Asia East - Today
+      - name: Scrape Day 6
         continue-on-error: true
         env:
           PYTHONPATH: ${{ github.workspace }}
         run: |
           python src/main.py scrape_upcoming \
             --sport football \
-            --date ${{ steps.dates.outputs.TODAY }} \
-            --leagues japan-j1-league,japan-j2-league,japan-j3-league,south-korea-k-league-1,south-korea-k-league-2,china-super-league,vietnam-v-league-1,thailand-thai-league-1,malaysia-super-league,singapore-premier-league,indonesia-liga-1,asia-afc-champions-league-elite \
+            --date ${{ steps.date.outputs.DATE }} \
             --markets 1x2,over_under_2_5,btts \
             --headless \
-            --file_path data/asia_east_today.json \
+            --file_path data/day6.json \
             --format json \
-            --concurrency_tasks 3
-      
-      - name: Scrape Asia East - Tomorrow
-        continue-on-error: true
-        env:
-          PYTHONPATH: ${{ github.workspace }}
-        run: |
-          python src/main.py scrape_upcoming \
-            --sport football \
-            --date ${{ steps.dates.outputs.TOMORROW }} \
-            --leagues japan-j1-league,japan-j2-league,japan-j3-league,south-korea-k-league-1,south-korea-k-league-2,china-super-league,vietnam-v-league-1,thailand-thai-league-1,malaysia-super-league,singapore-premier-league,indonesia-liga-1,asia-afc-champions-league-elite \
-            --markets 1x2,over_under_2_5,btts \
-            --headless \
-            --file_path data/asia_east_tomorrow.json \
-            --format json \
-            --concurrency_tasks 3
+            --concurrency_tasks 5
       
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: asia-east
-          path: data/*.json
-          retention-days: 1
-
-  asia-west:
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      
-      - name: Install dependencies
-        run: |
-          pip install playwright aiohttp fake_useragent tenacity boto3 beautifulsoup4 lxml
-          playwright install chromium
-          playwright install-deps chromium
-      
-      - name: Set dates
-        id: dates
-        run: |
-          echo "TODAY=$(date -u +%Y%m%d)" >> $GITHUB_OUTPUT
-          echo "TOMORROW=$(date -u -d '+1 day' +%Y%m%d)" >> $GITHUB_OUTPUT
-      
-      - name: Scrape Asia West - Today
-        continue-on-error: true
-        env:
-          PYTHONPATH: ${{ github.workspace }}
-        run: |
-          python src/main.py scrape_upcoming \
-            --sport football \
-            --date ${{ steps.dates.outputs.TODAY }} \
-            --leagues saudi-arabia-saudi-pro-league,qatar-stars-league,uae-pro-league,kuwait-premier-league,bahrain-premier-league,iraq-stars-league,iran-persian-gulf-pro-league,india-super-league,uzbekistan-super-league,kazakhstan-premier-league \
-            --markets 1x2,over_under_2_5,btts \
-            --headless \
-            --file_path data/asia_west_today.json \
-            --format json \
-            --concurrency_tasks 3
-      
-      - name: Scrape Asia West - Tomorrow
-        continue-on-error: true
-        env:
-          PYTHONPATH: ${{ github.workspace }}
-        run: |
-          python src/main.py scrape_upcoming \
-            --sport football \
-            --date ${{ steps.dates.outputs.TOMORROW }} \
-            --leagues saudi-arabia-saudi-pro-league,qatar-stars-league,uae-pro-league,kuwait-premier-league,bahrain-premier-league,iraq-stars-league,iran-persian-gulf-pro-league,india-super-league,uzbekistan-super-league,kazakhstan-premier-league \
-            --markets 1x2,over_under_2_5,btts \
-            --headless \
-            --file_path data/asia_west_tomorrow.json \
-            --format json \
-            --concurrency_tasks 3
-      
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: asia-west
-          path: data/*.json
-          retention-days: 1
-
-  africa-oceania:
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      
-      - name: Install dependencies
-        run: |
-          pip install playwright aiohttp fake_useragent tenacity boto3 beautifulsoup4 lxml
-          playwright install chromium
-          playwright install-deps chromium
-      
-      - name: Set dates
-        id: dates
-        run: |
-          echo "TODAY=$(date -u +%Y%m%d)" >> $GITHUB_OUTPUT
-          echo "TOMORROW=$(date -u -d '+1 day' +%Y%m%d)" >> $GITHUB_OUTPUT
-      
-      - name: Scrape Africa/Oceania - Today
-        continue-on-error: true
-        env:
-          PYTHONPATH: ${{ github.workspace }}
-        run: |
-          python src/main.py scrape_upcoming \
-            --sport football \
-            --date ${{ steps.dates.outputs.TODAY }} \
-            --leagues egypt-premier-league,morocco-botola-pro,tunisia-ligue-1,south-africa-premier-soccer-league,algeria-ligue-1,ghana-premier-league,nigeria-npfl,africa-caf-champions-league,africa-caf-confederation-cup,australia-a-league \
-            --markets 1x2,over_under_2_5,btts \
-            --headless \
-            --file_path data/africa_oceania_today.json \
-            --format json \
-            --concurrency_tasks 3
-      
-      - name: Scrape Africa/Oceania - Tomorrow
-        continue-on-error: true
-        env:
-          PYTHONPATH: ${{ github.workspace }}
-        run: |
-          python src/main.py scrape_upcoming \
-            --sport football \
-            --date ${{ steps.dates.outputs.TOMORROW }} \
-            --leagues egypt-premier-league,morocco-botola-pro,tunisia-ligue-1,south-africa-premier-soccer-league,algeria-ligue-1,ghana-premier-league,nigeria-npfl,africa-caf-champions-league,africa-caf-confederation-cup,australia-a-league \
-            --markets 1x2,over_under_2_5,btts \
-            --headless \
-            --file_path data/africa_oceania_tomorrow.json \
-            --format json \
-            --concurrency_tasks 3
-      
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: africa-oceania
+          name: day-6
           path: data/*.json
           retention-days: 1
 
   merge:
-    needs: [europe-major, europe-secondary, europe-small, uefa, americas-north, americas-south, asia-east, asia-west, africa-oceania]
+    needs: [day-0, day-1, day-2, day-3, day-4, day-5, day-6]
     runs-on: ubuntu-latest
     if: always()
     steps:
