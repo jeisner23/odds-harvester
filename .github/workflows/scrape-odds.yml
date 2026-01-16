@@ -21,7 +21,7 @@ jobs:
       
       - name: Install dependencies
         run: |
-          pip install playwright aiohttp fake_useragent tenacity boto3
+          pip install playwright aiohttp fake_useragent tenacity boto3 beautifulsoup4 lxml
           playwright install chromium
           playwright install-deps chromium
       
