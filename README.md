@@ -1,185 +1,109 @@
-# OddsHarvester for WatchyScore
+# WatchyScore Odds Integration - football-data.co.uk
 
-Automated soccer odds scraping using GitHub Actions. Runs every 3 hours and publishes odds data to a GitHub Gist that WatchyScore can consume.
+Simple, reliable betting odds for WatchyScore using football-data.co.uk's free data.
 
-## Architecture
+## How It Works
 
 ```
-┌──────────────────┐      ┌─────────────────┐      ┌──────────────┐
-│ GitHub Actions   │─────▶│ GitHub Gist     │─────▶│ WatchyScore  │
-│ (every 3 hours)  │      │ (odds.json)     │      │ (Vercel)     │
-└──────────────────┘      └─────────────────┘      └──────────────┘
+football-data.co.uk/fixtures.csv
+        ↓ (GitHub Action, 3x daily)
+    fetch_odds.py
+        ↓
+    odds.json (Gist)
+        ↓ (Vercel API)
+    odds-harvester.js
+        ↓
+    scoring-engine.js (15% of score)
 ```
 
-## Setup Guide (15 minutes)
+## Coverage
 
-### Step 1: Create Your Repository
+| League | Code | Odds Available |
+|--------|------|----------------|
+| Premier League | E0 | 1X2, O/U 2.5 |
+| Championship | E1 | 1X2, O/U 2.5 |
+| League 1 | E2 | 1X2, O/U 2.5 |
+| League 2 | E3 | 1X2, O/U 2.5 |
+| Bundesliga | D1 | 1X2, O/U 2.5 |
+| 2. Bundesliga | D2 | 1X2, O/U 2.5 |
+| Serie A | I1 | 1X2, O/U 2.5 |
+| Serie B | I2 | 1X2, O/U 2.5 |
+| La Liga | SP1 | 1X2, O/U 2.5 |
+| Segunda | SP2 | 1X2, O/U 2.5 |
+| Ligue 1 | F1 | 1X2, O/U 2.5 |
+| Ligue 2 | F2 | 1X2, O/U 2.5 |
+| Eredivisie | N1 | 1X2, O/U 2.5 |
+| Primeira Liga | P1 | 1X2, O/U 2.5 |
+| Super Lig | T1 | 1X2, O/U 2.5 |
+| Super League Greece | G1 | 1X2, O/U 2.5 |
+| Scottish Premiership | SC0 | 1X2, O/U 2.5 |
 
-1. Create a new **private** GitHub repo called `odds-harvester`
-2. Clone it locally:
-   ```bash
-   git clone https://github.com/YOUR_USERNAME/odds-harvester.git
-   cd odds-harvester
-   ```
+## Setup
 
-3. Copy the OddsHarvester source code into it:
-   - Extract the OddsHarvester-master.zip
-   - Copy the `src/` folder into your repo
-   - Copy `pyproject.toml` (optional)
-
-4. Add the workflow and scripts from this setup:
-   ```
-   odds-harvester/
-   ├── .github/
-   │   └── workflows/
-   │       └── scrape-odds.yml    ← GitHub Actions workflow
-   ├── scripts/
-   │   └── merge_odds.py          ← Combines daily data
-   ├── data/                      ← Created automatically
-   │   └── .gitkeep
-   ├── src/                       ← OddsHarvester source
-   │   ├── cli/
-   │   ├── core/
-   │   ├── storage/
-   │   ├── utils/
-   │   └── main.py
-   ├── requirements.txt
-   └── README.md
-   ```
-
-### Step 2: Create a GitHub Gist
+### 1. Create a Gist
 
 1. Go to https://gist.github.com
-2. Click **"+"** to create a new gist
-3. **Filename:** `odds.json`
-4. **Content:** Just put `{}` for now
-5. Click **"Create secret gist"** (or public, doesn't matter)
-6. **Copy the Gist ID** from the URL:
-   ```
-   https://gist.github.com/YOUR_USERNAME/abc123def456
-                                         ^^^^^^^^^^^^
-                                         This is your GIST_ID
-   ```
+2. Create a new secret gist with filename `odds.json`
+3. Content can be empty: `{}`
+4. Note the Gist ID from the URL
 
-### Step 3: Create a Personal Access Token
+### 2. Add GitHub Secrets
 
-1. Go to https://github.com/settings/tokens?type=beta
-2. Click **"Generate new token"** → **"Fine-grained token"**
-3. Configure:
-   - **Name:** `odds-harvester-gist`
-   - **Expiration:** 90 days (or longer)
-   - **Repository access:** "Only select repositories" → select your `odds-harvester` repo
-   - **Permissions:**
-     - **Repository permissions:** None needed
-     - **Account permissions:** 
-       - Gists: **Read and write**
-4. Click **"Generate token"**
-5. **Copy the token immediately!** (you won't see it again)
+In your repo settings → Secrets:
 
-### Step 4: Add Secrets to Your Repo
+- `GIST_TOKEN` - Personal access token with `gist` scope
+- `ODDS_GIST_ID` - The Gist ID from step 1
 
-1. Go to your repo → **Settings** → **Secrets and variables** → **Actions**
-2. Click **"New repository secret"** and add:
+### 3. Deploy Files
 
-   | Name | Value |
-   |------|-------|
-   | `GIST_TOKEN` | Your personal access token from Step 3 |
-   | `GIST_ID` | The gist ID from Step 2 (e.g., `abc123def456`) |
+```bash
+# Copy to your repo
+cp scripts/fetch_odds.py your-repo/scripts/
+cp .github/workflows/fetch-odds.yml your-repo/.github/workflows/
 
-### Step 5: Test the Workflow
-
-1. Go to your repo → **Actions** tab
-2. Click **"Scrape Soccer Odds"** workflow
-3. Click **"Run workflow"** → **"Run workflow"**
-4. Wait 5-10 minutes for it to complete
-5. Check your Gist - it should now have odds data!
-
-### Step 6: Get Your Gist Raw URL
-
-Your WatchyScore app will fetch from:
-```
-https://gist.githubusercontent.com/YOUR_USERNAME/GIST_ID/raw/odds.json
+# In WatchyScore (Vercel)
+# Replace api/odds-harvester.js with the new version
 ```
 
-For example:
-```
-https://gist.githubusercontent.com/jakekanu/abc123def456/raw/odds.json
-```
+### 4. Set Vercel Environment Variable
 
-### Step 7: Update WatchyScore
-
-Add this environment variable to your Vercel project:
 ```
 ODDS_HARVESTER_URL=https://gist.githubusercontent.com/YOUR_USERNAME/GIST_ID/raw/odds.json
 ```
 
----
+## Update Schedule
 
-## Customization
+- **football-data.co.uk updates**: Fridays (weekend games) and Tuesdays (midweek)
+- **Our fetch schedule**: 6am, 12pm, 6pm UTC daily
 
-### Scrape More Leagues
+## Why This Over OddsPortal?
 
-Edit `.github/workflows/scrape-odds.yml` and add `--leagues`:
+| Aspect | football-data.co.uk | OddsPortal |
+|--------|---------------------|------------|
+| Reliability | ✅ 100% (simple CSV) | ❌ Flaky (browser scraping) |
+| Speed | ✅ ~2 seconds | ❌ 30-45 minutes |
+| Complexity | ✅ 100 lines Python | ❌ Playwright + retries |
+| Coverage | ⚠️ 20 European leagues | ✅ 100+ global leagues |
+| Cost | ✅ Free forever | ✅ Free |
 
-```yaml
-- name: Scrape today's matches
-  run: |
-    python src/main.py scrape_upcoming \
-      --sport football \
-      --leagues england-premier-league,spain-laliga,germany-bundesliga,italy-serie-a,france-ligue-1,champions-league,europa-league \
-      --markets 1x2 \
-      --headless \
-      --file_path data/today.json
+## Output Format
+
+```json
+{
+  "matches": [
+    {
+      "home_team": "Liverpool",
+      "away_team": "Arsenal",
+      "commence_time": "2026-01-17T15:00:00Z",
+      "league": "ENG Premier League",
+      "markets": {
+        "h2h": { "home": 1.85, "draw": 3.40, "away": 4.20 },
+        "totals": { "over": 1.90, "under": 1.90, "line": 2.5 }
+      }
+    }
+  ],
+  "last_updated": "2026-01-16T12:00:00Z",
+  "source": "football-data.co.uk",
+  "match_count": 150
+}
 ```
-
-### Available Leagues
-
-See `src/utils/sport_league_constants.py` for the full list. Key ones:
-- `england-premier-league`
-- `england-championship`
-- `spain-laliga`
-- `germany-bundesliga`
-- `italy-serie-a`
-- `france-ligue-1`
-- `champions-league`
-- `europa-league`
-- `usa-mls`
-- `brazil-serie-a`
-- `eredivisie`
-- `liga-portugal`
-
-### Change Scrape Frequency
-
-Edit the cron schedule in `.github/workflows/scrape-odds.yml`:
-
-```yaml
-on:
-  schedule:
-    - cron: '0 */3 * * *'  # Every 3 hours
-    # - cron: '0 */2 * * *'  # Every 2 hours
-    # - cron: '0 */6 * * *'  # Every 6 hours
-```
-
----
-
-## Troubleshooting
-
-### Workflow fails with timeout
-- OddsPortal may be blocking. Try adding delays or using fewer leagues.
-
-### Gist not updating
-- Check that `GIST_TOKEN` has "Gists: Read and write" permission
-- Check that `GIST_ID` is correct (just the ID, not the full URL)
-
-### Empty odds.json
-- Check the workflow logs for scraping errors
-- Try running manually with `workflow_dispatch`
-
----
-
-## Cost
-
-**$0** - GitHub Actions free tier includes 2,000 minutes/month. 
-This workflow uses ~5-10 minutes per run × 8 runs/day = ~40-80 minutes/day = ~1,200-2,400 minutes/month.
-
-You're within the free tier! 🎉
