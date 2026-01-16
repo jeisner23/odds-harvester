@@ -1,0 +1,64 @@
+name: Fetch Odds from football-data.co.uk
+
+on:
+  schedule:
+    # Runs at 6am, 12pm, and 6pm UTC
+    # football-data updates Fridays (weekend) and Tuesdays (midweek)
+    - cron: '0 6,12,18 * * *'
+  workflow_dispatch:
+    inputs:
+      debug:
+        description: 'Enable debug output'
+        required: false
+        default: 'false'
+
+jobs:
+  fetch-odds:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: pip install pandas requests
+      
+      - name: Fetch and transform odds
+        run: |
+          python scripts/fetch_odds.py > odds.json
+          
+          # Show summary
+          echo "========================================="
+          echo "         ODDS FETCH SUMMARY"
+          echo "========================================="
+          echo "Matches found: $(jq '.match_count' odds.json)"
+          echo "Last updated: $(jq -r '.last_updated' odds.json)"
+          echo ""
+          echo "Leagues covered:"
+          jq -r '[.matches[].league] | unique | .[]' odds.json | sort | uniq -c | sort -rn
+          echo ""
+          
+          # Show sample match
+          echo "Sample match:"
+          jq '.matches[0]' odds.json
+      
+      - name: Upload odds to Gist
+        uses: exuanbo/actions-deploy-gist@v1
+        with:
+          token: ${{ secrets.GIST_TOKEN }}
+          gist_id: ${{ secrets.ODDS_GIST_ID }}
+          file_path: odds.json
+          file_type: text
+      
+      - name: Summary
+        run: |
+          echo "✅ Odds uploaded successfully!"
+          echo ""
+          echo "Gist URL: https://gist.github.com/${{ github.repository_owner }}/${{ secrets.ODDS_GIST_ID }}"
+          echo "Raw URL:  https://gist.githubusercontent.com/${{ github.repository_owner }}/${{ secrets.ODDS_GIST_ID }}/raw/odds.json"
