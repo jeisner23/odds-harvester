@@ -2,15 +2,8 @@ name: Fetch Odds from football-data.co.uk
 
 on:
   schedule:
-    # Runs at 6am, 12pm, and 6pm UTC
-    # football-data updates Fridays (weekend) and Tuesdays (midweek)
     - cron: '0 6,12,18 * * *'
   workflow_dispatch:
-    inputs:
-      debug:
-        description: 'Enable debug output'
-        required: false
-        default: 'false'
 
 jobs:
   fetch-odds:
@@ -32,33 +25,22 @@ jobs:
       - name: Fetch and transform odds
         run: |
           python scripts/fetch_odds.py > odds.json
-          
-          # Show summary
           echo "========================================="
           echo "         ODDS FETCH SUMMARY"
           echo "========================================="
           echo "Matches found: $(jq '.match_count' odds.json)"
           echo "Last updated: $(jq -r '.last_updated' odds.json)"
-          echo ""
-          echo "Leagues covered:"
-          jq -r '[.matches[].league] | unique | .[]' odds.json | sort | uniq -c | sort -rn
-          echo ""
-          
-          # Show sample match
-          echo "Sample match:"
-          jq '.matches[0]' odds.json
+          cat odds.json | head -100
       
       - name: Upload odds to Gist
         uses: exuanbo/actions-deploy-gist@v1
         with:
           token: ${{ secrets.GIST_TOKEN }}
-          gist_id: ${{ secrets.ODDS_GIST_ID }}
+          gist_id: 5d2a07b5e6e75c030679cdbeb671e931
           file_path: odds.json
           file_type: text
       
-      - name: Summary
+      - name: Done
         run: |
-          echo "✅ Odds uploaded successfully!"
-          echo ""
-          echo "Gist URL: https://gist.github.com/${{ github.repository_owner }}/${{ secrets.ODDS_GIST_ID }}"
-          echo "Raw URL:  https://gist.githubusercontent.com/${{ github.repository_owner }}/${{ secrets.ODDS_GIST_ID }}/raw/odds.json"
+          echo "✅ Odds uploaded to Gist!"
+          echo "URL: https://gist.githubusercontent.com/jeisner23/5d2a07b5e6e75c030679cdbeb671e931/raw/odds.json"
