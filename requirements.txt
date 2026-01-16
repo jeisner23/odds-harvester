@@ -1,0 +1,5 @@
+playwright>=1.40.0
+aiohttp>=3.9.0
+fake_useragent>=1.4.0
+tenacity>=8.2.0
+boto3>=1.34.0
