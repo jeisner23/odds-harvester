@@ -1,19 +1,57 @@
-name: Scrape Soccer Odds (7-Day)
+name: Scrape Soccer Odds
 
 on:
   schedule:
-    - cron: '0 */4 * * *'
+    # Distributed schedule - 10 scrapes per day, ~2 hour gaps, never overlapping
+    # Each cron triggers ONE specific day's scrape
+    
+    # Day 0 (Today) - 3x daily for freshest odds
+    - cron: '0 6 * * *'   # 06:00 UTC - Morning refresh
+    - cron: '0 14 * * *'  # 14:00 UTC - Afternoon refresh  
+    - cron: '0 22 * * *'  # 22:00 UTC - Evening refresh
+    
+    # Day 1 (Tomorrow) - 2x daily
+    - cron: '0 4 * * *'   # 04:00 UTC - Early refresh
+    - cron: '0 16 * * *'  # 16:00 UTC - Afternoon refresh
+    
+    # Days 2-6 - 1x daily each, staggered
+    - cron: '0 12 * * *'  # 12:00 UTC - Day 2
+    - cron: '0 10 * * *'  # 10:00 UTC - Day 3
+    - cron: '0 8 * * *'   # 08:00 UTC - Day 4
+    - cron: '0 2 * * *'   # 02:00 UTC - Day 5
+    - cron: '0 0 * * *'   # 00:00 UTC - Day 6 (midnight - catches new games entering window)
+    
   workflow_dispatch:
+    inputs:
+      day_offset:
+        description: 'Day to scrape (0=today, 1=tomorrow, etc.)'
+        required: false
+        default: '0'
 
-# This workflow scrapes 7 days of odds with retry logic and staggered delays
-# to handle OddsPortal's occasional timeouts
+# Schedule visualization (UTC):
+# 
+# 00:00 ████ Day 6    (new games enter 7-day window)
+# 02:00 ████ Day 5
+# 04:00 ████ Day 1    ← tomorrow refresh #1
+# 06:00 ████ Day 0    ← today refresh #1 (morning)
+# 08:00 ████ Day 4
+# 10:00 ████ Day 3
+# 12:00 ████ Day 2
+# 14:00 ████ Day 0    ← today refresh #2 (afternoon)
+# 16:00 ████ Day 1    ← tomorrow refresh #2
+# 18:00 ---- (buffer)
+# 20:00 ---- (buffer)
+# 22:00 ████ Day 0    ← today refresh #3 (evening)
+#
+# Each scrape ~20-30 min, 2-hour gaps = never overlap
 
 jobs:
-  day-0:
+  scrape:
     runs-on: ubuntu-latest
-    timeout-minutes: 50
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
+      
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -24,499 +62,135 @@ jobs:
           playwright install chromium
           playwright install-deps chromium
       
-      - name: Get date
-        id: date
-        run: echo "DATE=$(date -u +%Y%m%d)" >> $GITHUB_OUTPUT
+      - name: Determine which day to scrape
+        id: day
+        run: |
+          if [ -n "${{ github.event.inputs.day_offset }}" ]; then
+            # Manual trigger - use provided day
+            DAY_OFFSET="${{ github.event.inputs.day_offset }}"
+          else
+            # Scheduled trigger - determine day from current UTC hour
+            HOUR=$(date -u +%H)
+            case $HOUR in
+              00) DAY_OFFSET=6 ;;  # Midnight - Day 6
+              02) DAY_OFFSET=5 ;;  # 02:00 - Day 5
+              04) DAY_OFFSET=1 ;;  # 04:00 - Day 1
+              06) DAY_OFFSET=0 ;;  # 06:00 - Day 0
+              08) DAY_OFFSET=4 ;;  # 08:00 - Day 4
+              10) DAY_OFFSET=3 ;;  # 10:00 - Day 3
+              12) DAY_OFFSET=2 ;;  # 12:00 - Day 2
+              14) DAY_OFFSET=0 ;;  # 14:00 - Day 0
+              16) DAY_OFFSET=1 ;;  # 16:00 - Day 1
+              22) DAY_OFFSET=0 ;;  # 22:00 - Day 0
+              *)  DAY_OFFSET=0 ;;  # Fallback
+            esac
+          fi
+          
+          # Calculate the actual date
+          TARGET_DATE=$(date -u -d "+${DAY_OFFSET} days" +%Y%m%d)
+          TARGET_DATE_DISPLAY=$(date -u -d "+${DAY_OFFSET} days" +%Y-%m-%d)
+          
+          echo "DAY_OFFSET=$DAY_OFFSET" >> $GITHUB_OUTPUT
+          echo "TARGET_DATE=$TARGET_DATE" >> $GITHUB_OUTPUT
+          echo "TARGET_DATE_DISPLAY=$TARGET_DATE_DISPLAY" >> $GITHUB_OUTPUT
+          
+          echo "📅 Scraping Day $DAY_OFFSET ($TARGET_DATE_DISPLAY)"
       
-      - name: Scrape Day 0 (Today) - Attempt 1
-        id: attempt1
+      - name: Create data directory
+        run: mkdir -p data
+      
+      - name: Scrape odds for target day
+        id: scrape
         continue-on-error: true
         env:
           PYTHONPATH: ${{ github.workspace }}
         run: |
+          echo "🔍 Scraping Day ${{ steps.day.outputs.DAY_OFFSET }}: ${{ steps.day.outputs.TARGET_DATE_DISPLAY }}"
+          echo ""
+          
           python src/main.py scrape_upcoming \
             --sport football \
-            --date ${{ steps.date.outputs.DATE }} \
+            --date ${{ steps.day.outputs.TARGET_DATE }} \
             --markets 1x2,over_under_2_5,btts \
             --headless \
-            --file_path data/day0.json \
-            --format json \
-            --concurrency_tasks 3
-      
-      - name: Wait before retry
-        if: steps.attempt1.outcome == 'failure'
-        run: sleep 30
-      
-      - name: Scrape Day 0 - Attempt 2
-        if: steps.attempt1.outcome == 'failure'
-        id: attempt2
-        continue-on-error: true
-        env:
-          PYTHONPATH: ${{ github.workspace }}
-        run: |
-          python src/main.py scrape_upcoming \
-            --sport football \
-            --date ${{ steps.date.outputs.DATE }} \
-            --markets 1x2,over_under_2_5,btts \
-            --headless \
-            --file_path data/day0.json \
+            --file_path data/day${{ steps.day.outputs.DAY_OFFSET }}.json \
             --format json \
             --concurrency_tasks 2
+          
+          echo ""
+          echo "✅ Scrape complete"
       
-      - name: Wait before retry
-        if: steps.attempt1.outcome == 'failure' && steps.attempt2.outcome == 'failure'
-        run: sleep 60
-      
-      - name: Scrape Day 0 - Attempt 3
-        if: steps.attempt1.outcome == 'failure' && steps.attempt2.outcome == 'failure'
+      - name: Retry scrape if failed
+        if: steps.scrape.outcome == 'failure'
         continue-on-error: true
         env:
           PYTHONPATH: ${{ github.workspace }}
         run: |
+          echo "⚠️ First attempt failed, waiting 60s before retry..."
+          sleep 60
+          
+          echo "🔄 Retrying with lower concurrency..."
           python src/main.py scrape_upcoming \
             --sport football \
-            --date ${{ steps.date.outputs.DATE }} \
-            --markets 1x2 \
+            --date ${{ steps.day.outputs.TARGET_DATE }} \
+            --markets 1x2,over_under_2_5,btts \
             --headless \
-            --file_path data/day0.json \
+            --file_path data/day${{ steps.day.outputs.DAY_OFFSET }}.json \
             --format json \
             --concurrency_tasks 1
       
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: day-0
-          path: data/*.json
-          retention-days: 1
-          if-no-files-found: ignore
-
-  day-1:
-    runs-on: ubuntu-latest
-    timeout-minutes: 50
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      
-      - name: Install dependencies
+      - name: Check scrape results
         run: |
-          pip install playwright aiohttp fake_useragent tenacity boto3 beautifulsoup4 lxml
-          playwright install chromium
-          playwright install-deps chromium
-      
-      - name: Delay to stagger requests
-        run: sleep 15
-      
-      - name: Get date
-        id: date
-        run: echo "DATE=$(date -u -d '+1 day' +%Y%m%d)" >> $GITHUB_OUTPUT
-      
-      - name: Scrape Day 1 - Attempt 1
-        id: attempt1
-        continue-on-error: true
-        env:
-          PYTHONPATH: ${{ github.workspace }}
-        run: |
-          python src/main.py scrape_upcoming \
-            --sport football \
-            --date ${{ steps.date.outputs.DATE }} \
-            --markets 1x2,over_under_2_5,btts \
-            --headless \
-            --file_path data/day1.json \
-            --format json \
-            --concurrency_tasks 3
-      
-      - name: Wait before retry
-        if: steps.attempt1.outcome == 'failure'
-        run: sleep 30
-      
-      - name: Scrape Day 1 - Attempt 2
-        if: steps.attempt1.outcome == 'failure'
-        continue-on-error: true
-        env:
-          PYTHONPATH: ${{ github.workspace }}
-        run: |
-          python src/main.py scrape_upcoming \
-            --sport football \
-            --date ${{ steps.date.outputs.DATE }} \
-            --markets 1x2,over_under_2_5,btts \
-            --headless \
-            --file_path data/day1.json \
-            --format json \
-            --concurrency_tasks 2
-      
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: day-1
-          path: data/*.json
-          retention-days: 1
-          if-no-files-found: ignore
-
-  day-2:
-    runs-on: ubuntu-latest
-    timeout-minutes: 50
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      
-      - name: Install dependencies
-        run: |
-          pip install playwright aiohttp fake_useragent tenacity boto3 beautifulsoup4 lxml
-          playwright install chromium
-          playwright install-deps chromium
-      
-      - name: Delay to stagger requests
-        run: sleep 30
-      
-      - name: Get date
-        id: date
-        run: echo "DATE=$(date -u -d '+2 days' +%Y%m%d)" >> $GITHUB_OUTPUT
-      
-      - name: Scrape Day 2 - Attempt 1
-        id: attempt1
-        continue-on-error: true
-        env:
-          PYTHONPATH: ${{ github.workspace }}
-        run: |
-          python src/main.py scrape_upcoming \
-            --sport football \
-            --date ${{ steps.date.outputs.DATE }} \
-            --markets 1x2,over_under_2_5,btts \
-            --headless \
-            --file_path data/day2.json \
-            --format json \
-            --concurrency_tasks 3
-      
-      - name: Wait before retry
-        if: steps.attempt1.outcome == 'failure'
-        run: sleep 30
-      
-      - name: Scrape Day 2 - Attempt 2
-        if: steps.attempt1.outcome == 'failure'
-        continue-on-error: true
-        env:
-          PYTHONPATH: ${{ github.workspace }}
-        run: |
-          python src/main.py scrape_upcoming \
-            --sport football \
-            --date ${{ steps.date.outputs.DATE }} \
-            --markets 1x2,over_under_2_5,btts \
-            --headless \
-            --file_path data/day2.json \
-            --format json \
-            --concurrency_tasks 2
-      
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: day-2
-          path: data/*.json
-          retention-days: 1
-          if-no-files-found: ignore
-
-  day-3:
-    runs-on: ubuntu-latest
-    timeout-minutes: 50
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      
-      - name: Install dependencies
-        run: |
-          pip install playwright aiohttp fake_useragent tenacity boto3 beautifulsoup4 lxml
-          playwright install chromium
-          playwright install-deps chromium
-      
-      - name: Delay to stagger requests
-        run: sleep 45
-      
-      - name: Get date
-        id: date
-        run: echo "DATE=$(date -u -d '+3 days' +%Y%m%d)" >> $GITHUB_OUTPUT
-      
-      - name: Scrape Day 3 - Attempt 1
-        id: attempt1
-        continue-on-error: true
-        env:
-          PYTHONPATH: ${{ github.workspace }}
-        run: |
-          python src/main.py scrape_upcoming \
-            --sport football \
-            --date ${{ steps.date.outputs.DATE }} \
-            --markets 1x2,over_under_2_5,btts \
-            --headless \
-            --file_path data/day3.json \
-            --format json \
-            --concurrency_tasks 3
-      
-      - name: Wait before retry
-        if: steps.attempt1.outcome == 'failure'
-        run: sleep 30
-      
-      - name: Scrape Day 3 - Attempt 2
-        if: steps.attempt1.outcome == 'failure'
-        continue-on-error: true
-        env:
-          PYTHONPATH: ${{ github.workspace }}
-        run: |
-          python src/main.py scrape_upcoming \
-            --sport football \
-            --date ${{ steps.date.outputs.DATE }} \
-            --markets 1x2,over_under_2_5,btts \
-            --headless \
-            --file_path data/day3.json \
-            --format json \
-            --concurrency_tasks 2
-      
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: day-3
-          path: data/*.json
-          retention-days: 1
-          if-no-files-found: ignore
-
-  day-4:
-    runs-on: ubuntu-latest
-    timeout-minutes: 50
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      
-      - name: Install dependencies
-        run: |
-          pip install playwright aiohttp fake_useragent tenacity boto3 beautifulsoup4 lxml
-          playwright install chromium
-          playwright install-deps chromium
-      
-      - name: Delay to stagger requests
-        run: sleep 60
-      
-      - name: Get date
-        id: date
-        run: echo "DATE=$(date -u -d '+4 days' +%Y%m%d)" >> $GITHUB_OUTPUT
-      
-      - name: Scrape Day 4 - Attempt 1
-        id: attempt1
-        continue-on-error: true
-        env:
-          PYTHONPATH: ${{ github.workspace }}
-        run: |
-          python src/main.py scrape_upcoming \
-            --sport football \
-            --date ${{ steps.date.outputs.DATE }} \
-            --markets 1x2,over_under_2_5,btts \
-            --headless \
-            --file_path data/day4.json \
-            --format json \
-            --concurrency_tasks 3
-      
-      - name: Wait before retry
-        if: steps.attempt1.outcome == 'failure'
-        run: sleep 30
-      
-      - name: Scrape Day 4 - Attempt 2
-        if: steps.attempt1.outcome == 'failure'
-        continue-on-error: true
-        env:
-          PYTHONPATH: ${{ github.workspace }}
-        run: |
-          python src/main.py scrape_upcoming \
-            --sport football \
-            --date ${{ steps.date.outputs.DATE }} \
-            --markets 1x2,over_under_2_5,btts \
-            --headless \
-            --file_path data/day4.json \
-            --format json \
-            --concurrency_tasks 2
-      
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: day-4
-          path: data/*.json
-          retention-days: 1
-          if-no-files-found: ignore
-
-  day-5:
-    runs-on: ubuntu-latest
-    timeout-minutes: 50
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      
-      - name: Install dependencies
-        run: |
-          pip install playwright aiohttp fake_useragent tenacity boto3 beautifulsoup4 lxml
-          playwright install chromium
-          playwright install-deps chromium
-      
-      - name: Delay to stagger requests
-        run: sleep 75
-      
-      - name: Get date
-        id: date
-        run: echo "DATE=$(date -u -d '+5 days' +%Y%m%d)" >> $GITHUB_OUTPUT
-      
-      - name: Scrape Day 5 - Attempt 1
-        id: attempt1
-        continue-on-error: true
-        env:
-          PYTHONPATH: ${{ github.workspace }}
-        run: |
-          python src/main.py scrape_upcoming \
-            --sport football \
-            --date ${{ steps.date.outputs.DATE }} \
-            --markets 1x2,over_under_2_5,btts \
-            --headless \
-            --file_path data/day5.json \
-            --format json \
-            --concurrency_tasks 3
-      
-      - name: Wait before retry
-        if: steps.attempt1.outcome == 'failure'
-        run: sleep 30
-      
-      - name: Scrape Day 5 - Attempt 2
-        if: steps.attempt1.outcome == 'failure'
-        continue-on-error: true
-        env:
-          PYTHONPATH: ${{ github.workspace }}
-        run: |
-          python src/main.py scrape_upcoming \
-            --sport football \
-            --date ${{ steps.date.outputs.DATE }} \
-            --markets 1x2,over_under_2_5,btts \
-            --headless \
-            --file_path data/day5.json \
-            --format json \
-            --concurrency_tasks 2
-      
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: day-5
-          path: data/*.json
-          retention-days: 1
-          if-no-files-found: ignore
-
-  day-6:
-    runs-on: ubuntu-latest
-    timeout-minutes: 50
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      
-      - name: Install dependencies
-        run: |
-          pip install playwright aiohttp fake_useragent tenacity boto3 beautifulsoup4 lxml
-          playwright install chromium
-          playwright install-deps chromium
-      
-      - name: Delay to stagger requests
-        run: sleep 90
-      
-      - name: Get date
-        id: date
-        run: echo "DATE=$(date -u -d '+6 days' +%Y%m%d)" >> $GITHUB_OUTPUT
-      
-      - name: Scrape Day 6 - Attempt 1
-        id: attempt1
-        continue-on-error: true
-        env:
-          PYTHONPATH: ${{ github.workspace }}
-        run: |
-          python src/main.py scrape_upcoming \
-            --sport football \
-            --date ${{ steps.date.outputs.DATE }} \
-            --markets 1x2,over_under_2_5,btts \
-            --headless \
-            --file_path data/day6.json \
-            --format json \
-            --concurrency_tasks 3
-      
-      - name: Wait before retry
-        if: steps.attempt1.outcome == 'failure'
-        run: sleep 30
-      
-      - name: Scrape Day 6 - Attempt 2
-        if: steps.attempt1.outcome == 'failure'
-        continue-on-error: true
-        env:
-          PYTHONPATH: ${{ github.workspace }}
-        run: |
-          python src/main.py scrape_upcoming \
-            --sport football \
-            --date ${{ steps.date.outputs.DATE }} \
-            --markets 1x2,over_under_2_5,btts \
-            --headless \
-            --file_path data/day6.json \
-            --format json \
-            --concurrency_tasks 2
-      
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: day-6
-          path: data/*.json
-          retention-days: 1
-          if-no-files-found: ignore
-
-  merge:
-    needs: [day-0, day-1, day-2, day-3, day-4, day-5, day-6]
-    runs-on: ubuntu-latest
-    if: always()
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        continue-on-error: true
-        with:
-          path: artifacts
-      
-      - name: List downloaded files
-        run: |
-          echo "Downloaded artifacts:"
-          find artifacts -name "*.json" -type f || echo "No JSON files found"
-      
-      - name: Merge all odds files
-        run: python scripts/merge_odds.py
-      
-      - name: Show merge results
-        run: |
-          if [ -f data/odds.json ]; then
-            echo "Odds file created:"
-            ls -la data/odds.json
-            echo "Preview:"
-            head -c 500 data/odds.json
+          if [ -f "data/day${{ steps.day.outputs.DAY_OFFSET }}.json" ]; then
+            SIZE=$(wc -c < "data/day${{ steps.day.outputs.DAY_OFFSET }}.json")
+            echo "📁 Scraped file: $SIZE bytes"
+            
+            if [ "$SIZE" -lt 100 ]; then
+              echo "⚠️ File seems too small, may be empty"
+            fi
           else
-            echo "No odds.json created"
+            echo "❌ No data file created"
           fi
       
-      - name: Upload odds to Gist
+      - name: Download existing odds from Gist
+        continue-on-error: true
+        run: |
+          echo "📥 Fetching existing odds.json from Gist..."
+          curl -s -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/gists/${{ secrets.GIST_ID }}" \
+            | python -c "
+          import sys, json
+          try:
+              data = json.load(sys.stdin)
+              content = data.get('files', {}).get('odds.json', {}).get('content', '')
+              if content:
+                  with open('data/existing_odds.json', 'w') as f:
+                      f.write(content)
+                  print('✅ Downloaded existing odds.json')
+              else:
+                  print('ℹ️ No existing odds.json found')
+          except Exception as e:
+              print(f'⚠️ Could not fetch existing data: {e}')
+          "
+      
+      - name: Merge new data with existing
+        run: |
+          python scripts/merge_odds.py
+      
+      - name: Show results
+        run: |
+          if [ -f data/odds.json ]; then
+            echo "📊 Final odds.json:"
+            ls -la data/odds.json
+            echo ""
+            echo "Preview:"
+            head -c 500 data/odds.json
+            echo ""
+          else
+            echo "❌ No odds.json created"
+          fi
+      
+      - name: Upload to Gist
         if: hashFiles('data/odds.json') != ''
         uses: exuanbo/actions-deploy-gist@v1
         with:
@@ -524,3 +198,28 @@ jobs:
           gist_id: ${{ secrets.GIST_ID }}
           file_path: data/odds.json
           file_type: text
+      
+      - name: Summary
+        if: always()
+        run: |
+          echo "========================================"
+          echo "        SCRAPE SUMMARY"
+          echo "========================================"
+          echo "Day scraped: ${{ steps.day.outputs.DAY_OFFSET }} (${{ steps.day.outputs.TARGET_DATE_DISPLAY }})"
+          echo "UTC hour: $(date -u +%H:%M)"
+          echo ""
+          
+          if [ -f "data/day${{ steps.day.outputs.DAY_OFFSET }}.json" ]; then
+            SIZE=$(wc -c < "data/day${{ steps.day.outputs.DAY_OFFSET }}.json")
+            if [ "$SIZE" -gt 100 ]; then
+              echo "✅ Successfully scraped $SIZE bytes"
+            else
+              echo "⚠️ Scrape produced minimal data ($SIZE bytes)"
+            fi
+          else
+            echo "❌ Scrape failed - no data file"
+          fi
+          
+          if [ -f "data/odds.json" ]; then
+            echo "✅ Merged and uploaded to Gist"
+          fi
