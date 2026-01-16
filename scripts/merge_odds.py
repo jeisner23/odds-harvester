@@ -110,6 +110,24 @@ def main():
     all_matches = []
     seen = set()
     files_processed = 0
+    errors = []
+    
+    # Check if artifacts directory exists
+    if not os.path.exists('artifacts'):
+        print("⚠️ No artifacts directory found - creating empty output")
+        os.makedirs('data', exist_ok=True)
+        with open('data/odds.json', 'w') as f:
+            json.dump({
+                'meta': {
+                    'updated_at': datetime.now(timezone.utc).isoformat(),
+                    'source': 'oddsharvester',
+                    'total_matches': 0,
+                    'error': 'No artifacts downloaded'
+                },
+                'by_day': {},
+                'matches': []
+            }, f)
+        return
     
     # Walk through all artifact directories
     for root, dirs, files in os.walk('artifacts'):
@@ -211,13 +229,21 @@ def main():
     # Also include flat list for backwards compatibility
     output['matches'] = all_matches
     
+    # Add coverage info
+    days_with_data = sum(1 for d in range(7) if by_day[d])
+    output['meta']['days_with_data'] = days_with_data
+    output['meta']['coverage_percent'] = round(days_with_data / 7 * 100)
+    
     os.makedirs('data', exist_ok=True)
     with open('data/odds.json', 'w') as f:
         json.dump(output, f, separators=(',', ':'))  # Compact JSON to save space
     
-    print(f"\n✅ Merged {len(all_matches)} unique matches across 7 days")
+    print(f"\n✅ Merged {len(all_matches)} unique matches")
+    print(f"   Coverage: {days_with_data}/7 days ({output['meta']['coverage_percent']}%)")
     for day in range(7):
-        print(f"   Day {day}: {len(by_day[day])} matches")
+        count = len(by_day[day])
+        status = "✓" if count > 0 else "✗"
+        print(f"   {status} Day {day}: {count} matches")
 
 if __name__ == '__main__':
     main()
