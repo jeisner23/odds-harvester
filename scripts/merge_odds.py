@@ -1,184 +1,161 @@
 #!/usr/bin/env python3
-"""
-Merge today and tomorrow's odds into a single JSON file
-for WatchyScore consumption.
-"""
+"""Merge all odds JSON files from artifacts into a single output file."""
 
 import json
 import os
-from datetime import datetime, timezone
-
-DATA_DIR = "data"
-OUTPUT_FILE = os.path.join(DATA_DIR, "odds.json")
-
-def load_json_safe(filepath):
-    """Load JSON file, return empty list if not found or invalid."""
-    try:
-        with open(filepath, 'r') as f:
-            data = json.load(f)
-            # Handle both list and dict formats
-            if isinstance(data, list):
-                return data
-            elif isinstance(data, dict):
-                return data.get('matches', data.get('events', data.get('data', [])))
-            return []
-    except (FileNotFoundError, json.JSONDecodeError) as e:
-        print(f"Warning: Could not load {filepath}: {e}")
-        return []
-
-def normalize_match(match):
-    """
-    Normalize match data to a consistent format for WatchyScore.
-    
-    Output format:
-    {
-        "home_team": "Team A",
-        "away_team": "Team B", 
-        "commence_time": "2024-01-16T15:00:00Z",
-        "league": "England - Premier League",
-        "markets": {
-            "h2h": {
-                "home": 1.85,
-                "draw": 3.50,
-                "away": 4.20
-            }
-        }
-    }
-    """
-    normalized = {
-        "home_team": match.get("home_team") or match.get("homeTeam") or match.get("home", {}).get("name", ""),
-        "away_team": match.get("away_team") or match.get("awayTeam") or match.get("away", {}).get("name", ""),
-        "commence_time": match.get("commence_time") or match.get("start_time") or match.get("date", ""),
-        "league": match.get("league") or match.get("competition") or match.get("tournament", ""),
-    }
-    
-    # Extract odds - handle various formats from OddsHarvester
-    markets = {}
-    
-    # Format 1: Direct odds object
-    if "odds" in match:
-        odds = match["odds"]
-        if isinstance(odds, dict):
-            # Check for 1x2 / h2h market
-            h2h = {}
-            if "1" in odds or "home" in odds:
-                h2h["home"] = float(odds.get("1") or odds.get("home") or 0)
-            if "X" in odds or "draw" in odds:
-                h2h["draw"] = float(odds.get("X") or odds.get("draw") or 0)
-            if "2" in odds or "away" in odds:
-                h2h["away"] = float(odds.get("2") or odds.get("away") or 0)
-            if h2h.get("home") and h2h.get("away"):
-                markets["h2h"] = h2h
-    
-    # Format 2: Markets array from OddsHarvester
-    if "markets" in match:
-        for market in match.get("markets", []):
-            market_key = market.get("key") or market.get("name", "").lower()
-            
-            if market_key in ["1x2", "h2h", "match_winner", "fulltime_result"]:
-                h2h = {}
-                for outcome in market.get("outcomes", []):
-                    name = str(outcome.get("name", "")).lower()
-                    price = outcome.get("price") or outcome.get("odd") or outcome.get("odds")
-                    if price:
-                        price = float(price)
-                        if name in ["1", "home"] or "home" in name:
-                            h2h["home"] = price
-                        elif name in ["x", "draw", "tie"]:
-                            h2h["draw"] = price
-                        elif name in ["2", "away"] or "away" in name:
-                            h2h["away"] = price
-                if h2h.get("home") and h2h.get("away"):
-                    markets["h2h"] = h2h
-            
-            elif market_key in ["totals", "over_under", "goals"]:
-                ou = {}
-                for outcome in market.get("outcomes", []):
-                    name = str(outcome.get("name", "")).lower()
-                    price = outcome.get("price") or outcome.get("odd")
-                    point = outcome.get("point") or outcome.get("line", 2.5)
-                    if price and point == 2.5:
-                        if "over" in name:
-                            ou["over"] = float(price)
-                        elif "under" in name:
-                            ou["under"] = float(price)
-                if ou.get("over") and ou.get("under"):
-                    markets["totals"] = ou
-            
-            elif market_key in ["btts", "both_teams_to_score"]:
-                btts = {}
-                for outcome in market.get("outcomes", []):
-                    name = str(outcome.get("name", "")).lower()
-                    price = outcome.get("price") or outcome.get("odd")
-                    if price:
-                        if name in ["yes", "y"]:
-                            btts["yes"] = float(price)
-                        elif name in ["no", "n"]:
-                            btts["no"] = float(price)
-                if btts.get("yes") and btts.get("no"):
-                    markets["btts"] = btts
-    
-    # Format 3: Bookmakers array (The Odds API style)
-    if "bookmakers" in match:
-        for bookmaker in match.get("bookmakers", []):
-            for market in bookmaker.get("markets", []):
-                market_key = market.get("key", "")
-                if market_key == "h2h" and "h2h" not in markets:
-                    h2h = {}
-                    for outcome in market.get("outcomes", []):
-                        name = outcome.get("name", "")
-                        price = outcome.get("price")
-                        if name == match.get("home_team"):
-                            h2h["home"] = price
-                        elif name == match.get("away_team"):
-                            h2h["away"] = price
-                        elif name.lower() == "draw":
-                            h2h["draw"] = price
-                    if h2h.get("home") and h2h.get("away"):
-                        markets["h2h"] = h2h
-                        break  # Use first bookmaker with valid odds
-    
-    normalized["markets"] = markets
-    return normalized
+from datetime import datetime
 
 def main():
-    os.makedirs(DATA_DIR, exist_ok=True)
-    
-    # Load scraped data
-    today_matches = load_json_safe(os.path.join(DATA_DIR, "today.json"))
-    tomorrow_matches = load_json_safe(os.path.join(DATA_DIR, "tomorrow.json"))
-    
-    print(f"Loaded {len(today_matches)} matches from today")
-    print(f"Loaded {len(tomorrow_matches)} matches from tomorrow")
-    
-    # Combine and normalize
-    all_matches = today_matches + tomorrow_matches
-    normalized = []
-    
-    for match in all_matches:
-        try:
-            norm = normalize_match(match)
-            # Only include if we have valid team names and odds
-            if norm["home_team"] and norm["away_team"] and norm["markets"].get("h2h"):
-                normalized.append(norm)
-        except Exception as e:
-            print(f"Warning: Failed to normalize match: {e}")
-    
-    print(f"Normalized {len(normalized)} matches with valid odds")
-    
-    # Create output
-    output = {
-        "updated_at": datetime.now(timezone.utc).isoformat(),
-        "source": "oddsportal.com",
-        "match_count": len(normalized),
-        "matches": normalized
-    }
-    
-    # Write output
-    with open(OUTPUT_FILE, 'w') as f:
-        json.dump(output, f, indent=2)
-    
-    print(f"Wrote {len(normalized)} matches to {OUTPUT_FILE}")
+    all_matches = []
+    seen = set()
 
-if __name__ == "__main__":
+    # Walk through all artifact directories
+    for root, dirs, files in os.walk('artifacts'):
+        for file in files:
+            if file.endswith('.json'):
+                filepath = os.path.join(root, file)
+                print(f"Processing: {filepath}")
+                try:
+                    with open(filepath, 'r') as f:
+                        data = json.load(f)
+                    
+                    # Handle different data structures
+                    matches = []
+                    if isinstance(data, list):
+                        matches = data
+                    elif isinstance(data, dict):
+                        if 'matches' in data:
+                            matches = data['matches']
+                        elif 'data' in data:
+                            matches = data['data']
+                        else:
+                            matches = [data]
+                    
+                    for match in matches:
+                        if not isinstance(match, dict):
+                            continue
+                        
+                        # Extract team names
+                        home = match.get('home_team') or match.get('home') or match.get('homeTeam', '')
+                        away = match.get('away_team') or match.get('away') or match.get('awayTeam', '')
+                        
+                        if not home or not away:
+                            continue
+                        
+                        # Create unique key
+                        key = f"{home}|{away}".lower()
+                        if key in seen:
+                            continue
+                        seen.add(key)
+                        
+                        # Extract odds - comprehensive handling
+                        odds = {}
+                        
+                        # Check for 'odds' key
+                        if 'odds' in match:
+                            raw_odds = match['odds']
+                            if isinstance(raw_odds, dict):
+                                odds = raw_odds
+                        
+                        # Check for 'markets' key
+                        if 'markets' in match:
+                            markets = match['markets']
+                            if isinstance(markets, dict):
+                                odds = markets
+                            elif isinstance(markets, list):
+                                for m in markets:
+                                    market_name = m.get('name', '').lower()
+                                    market_type = m.get('type', '').lower()
+                                    
+                                    if market_name == '1x2' or market_type == 'h2h':
+                                        odds['h2h'] = m.get('odds', {})
+                                    elif 'over' in market_name or 'total' in market_type:
+                                        odds['totals'] = m.get('odds', {})
+                                    elif 'btts' in market_name or 'both' in market_name:
+                                        odds['btts'] = m.get('odds', {})
+                        
+                        # Check for 'bookmakers' key (API format)
+                        if 'bookmakers' in match and not odds:
+                            for bm in match.get('bookmakers', []):
+                                for market in bm.get('markets', []):
+                                    market_key = market.get('key', '')
+                                    outcomes = market.get('outcomes', [])
+                                    
+                                    if market_key == 'h2h':
+                                        h2h = {}
+                                        for o in outcomes:
+                                            if o.get('name') == home:
+                                                h2h['home'] = o.get('price')
+                                            elif o.get('name') == away:
+                                                h2h['away'] = o.get('price')
+                                            elif o.get('name') == 'Draw':
+                                                h2h['draw'] = o.get('price')
+                                        if h2h:
+                                            odds['h2h'] = h2h
+                                            
+                                    elif market_key == 'totals':
+                                        totals = {}
+                                        for o in outcomes:
+                                            if 'Over' in o.get('name', ''):
+                                                totals['over'] = o.get('price')
+                                                totals['line'] = o.get('point', 2.5)
+                                            elif 'Under' in o.get('name', ''):
+                                                totals['under'] = o.get('price')
+                                        if totals:
+                                            odds['totals'] = totals
+                                if odds:
+                                    break
+                        
+                        # Direct odds fields
+                        if not odds.get('h2h'):
+                            if all(k in match for k in ['home_odds', 'draw_odds', 'away_odds']):
+                                odds['h2h'] = {
+                                    'home': match['home_odds'],
+                                    'draw': match['draw_odds'],
+                                    'away': match['away_odds']
+                                }
+                            elif '1' in match and 'X' in match and '2' in match:
+                                odds['h2h'] = {
+                                    'home': match['1'],
+                                    'draw': match['X'],
+                                    'away': match['2']
+                                }
+                        
+                        # Get commence time
+                        commence = match.get('commence_time') or match.get('date') or match.get('datetime') or match.get('start_time', '')
+                        
+                        # Get league
+                        league = match.get('league') or match.get('competition') or match.get('tournament', 'Unknown')
+                        
+                        normalized = {
+                            'home_team': home,
+                            'away_team': away,
+                            'commence_time': commence,
+                            'league': league,
+                            'markets': odds if odds else {'h2h': {}}
+                        }
+                        
+                        all_matches.append(normalized)
+                        
+                except Exception as e:
+                    print(f"Error processing {filepath}: {e}")
+                    continue
+
+    # Sort by commence time
+    all_matches.sort(key=lambda x: x.get('commence_time', ''))
+
+    output = {
+        'updated_at': datetime.utcnow().isoformat() + 'Z',
+        'source': 'oddsharvester',
+        'match_count': len(all_matches),
+        'matches': all_matches
+    }
+
+    os.makedirs('data', exist_ok=True)
+    with open('data/odds.json', 'w') as f:
+        json.dump(output, f, indent=2)
+
+    print(f"\n✅ Merged {len(all_matches)} unique matches")
+
+if __name__ == '__main__':
     main()
