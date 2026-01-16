@@ -1,0 +1,73 @@
+name: Scrape Soccer Odds
+
+on:
+  schedule:
+    - cron: '0 */3 * * *'
+  workflow_dispatch:
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          pip install playwright aiohttp fake_useragent tenacity boto3
+          playwright install chromium
+          playwright install-deps chromium
+      
+      - name: Get dates
+        id: dates
+        run: |
+          echo "today=$(date +%Y%m%d)" >> $GITHUB_OUTPUT
+          echo "tomorrow=$(date -d '+1 day' +%Y%m%d)" >> $GITHUB_OUTPUT
+      
+      - name: Scrape today's matches
+        continue-on-error: true
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          mkdir -p data
+          python src/main.py scrape_upcoming \
+            --sport football \
+            --date ${{ steps.dates.outputs.today }} \
+            --markets 1x2 \
+            --headless \
+            --file_path data/today.json \
+            --format json \
+            --concurrency_tasks 2
+      
+      - name: Scrape tomorrow's matches
+        continue-on-error: true
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          python src/main.py scrape_upcoming \
+            --sport football \
+            --date ${{ steps.dates.outputs.tomorrow }} \
+            --markets 1x2 \
+            --headless \
+            --file_path data/tomorrow.json \
+            --format json \
+            --concurrency_tasks 2
+      
+      - name: Merge and format output
+        run: |
+          python scripts/merge_odds.py
+      
+      - name: Upload to Gist
+        uses: exuanbo/actions-deploy-gist@v1
+        with:
+          token: ${{ secrets.GIST_TOKEN }}
+          gist_id: ${{ secrets.GIST_ID }}
+          file_path: data/odds.json
+          file_type: text
