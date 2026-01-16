@@ -2,20 +2,20 @@ name: Scrape Soccer Odds
 
 on:
   schedule:
-    - cron: '0 */3 * * *'
+    # Run every 6 hours
+    - cron: '0 */6 * * *'
   workflow_dispatch:
 
 jobs:
-  scrape:
+  # ============================================
+  # EUROPE - Major Leagues
+  # ============================================
+  europe-major:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    
+    timeout-minutes: 20
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-      
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
       
@@ -25,46 +25,445 @@ jobs:
           playwright install chromium
           playwright install-deps chromium
       
-      - name: Get dates
+      - name: Set dates
         id: dates
         run: |
-          echo "today=$(date +%Y%m%d)" >> $GITHUB_OUTPUT
-          echo "tomorrow=$(date -d '+1 day' +%Y%m%d)" >> $GITHUB_OUTPUT
+          echo "TODAY=$(date -u +%Y%m%d)" >> $GITHUB_OUTPUT
+          echo "TOMORROW=$(date -u -d '+1 day' +%Y%m%d)" >> $GITHUB_OUTPUT
       
-      - name: Scrape today's matches
+      - name: Scrape Europe Major - Today
         continue-on-error: true
         env:
           PYTHONPATH: ${{ github.workspace }}
+        run: |
+          python src/main.py scrape_upcoming \
+            --sport football \
+            --date ${{ steps.dates.outputs.TODAY }} \
+            --leagues premier-league,championship,league-one,league-two,la-liga,la-liga-2,bundesliga,2-bundesliga,serie-a,serie-b,ligue-1,ligue-2,eredivisie,primeira-liga,jupiler-pro-league,super-lig,super-league,scottish-premiership \
+            --markets 1x2 \
+            --headless \
+            --file_path data/europe_major_today.json \
+            --format json \
+            --concurrency_tasks 3
+      
+      - name: Scrape Europe Major - Tomorrow
+        continue-on-error: true
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          python src/main.py scrape_upcoming \
+            --sport football \
+            --date ${{ steps.dates.outputs.TOMORROW }} \
+            --leagues premier-league,championship,league-one,league-two,la-liga,la-liga-2,bundesliga,2-bundesliga,serie-a,serie-b,ligue-1,ligue-2,eredivisie,primeira-liga,jupiler-pro-league,super-lig,super-league,scottish-premiership \
+            --markets 1x2 \
+            --headless \
+            --file_path data/europe_major_tomorrow.json \
+            --format json \
+            --concurrency_tasks 3
+      
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: europe-major
+          path: data/*.json
+          retention-days: 1
+
+  # ============================================
+  # EUROPE - Secondary Leagues
+  # ============================================
+  europe-secondary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          pip install playwright aiohttp fake_useragent tenacity boto3 beautifulsoup4 lxml
+          playwright install chromium
+          playwright install-deps chromium
+      
+      - name: Set dates
+        id: dates
+        run: |
+          echo "TODAY=$(date -u +%Y%m%d)" >> $GITHUB_OUTPUT
+          echo "TOMORROW=$(date -u -d '+1 day' +%Y%m%d)" >> $GITHUB_OUTPUT
+      
+      - name: Scrape Europe Secondary - Today
+        continue-on-error: true
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          python src/main.py scrape_upcoming \
+            --sport football \
+            --date ${{ steps.dates.outputs.TODAY }} \
+            --leagues superliga,eliteserien,allsvenskan,ekstraklasa,1-liga,fortuna-liga,bundesliga-austria,super-league-switzerland,super-league-greece,superliga-romania,hnl,superliga-serbia,premier-league-ukraine,premier-league-russia,veikkausliiga,tipico-bundesliga \
+            --markets 1x2 \
+            --headless \
+            --file_path data/europe_secondary_today.json \
+            --format json \
+            --concurrency_tasks 3
+      
+      - name: Scrape Europe Secondary - Tomorrow
+        continue-on-error: true
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          python src/main.py scrape_upcoming \
+            --sport football \
+            --date ${{ steps.dates.outputs.TOMORROW }} \
+            --leagues superliga,eliteserien,allsvenskan,ekstraklasa,1-liga,fortuna-liga,bundesliga-austria,super-league-switzerland,super-league-greece,superliga-romania,hnl,superliga-serbia,premier-league-ukraine,premier-league-russia,veikkausliiga,tipico-bundesliga \
+            --markets 1x2 \
+            --headless \
+            --file_path data/europe_secondary_tomorrow.json \
+            --format json \
+            --concurrency_tasks 3
+      
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: europe-secondary
+          path: data/*.json
+          retention-days: 1
+
+  # ============================================
+  # UEFA COMPETITIONS
+  # ============================================
+  uefa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          pip install playwright aiohttp fake_useragent tenacity boto3 beautifulsoup4 lxml
+          playwright install chromium
+          playwright install-deps chromium
+      
+      - name: Set dates
+        id: dates
+        run: |
+          echo "TODAY=$(date -u +%Y%m%d)" >> $GITHUB_OUTPUT
+          echo "TOMORROW=$(date -u -d '+1 day' +%Y%m%d)" >> $GITHUB_OUTPUT
+      
+      - name: Scrape UEFA - Today
+        continue-on-error: true
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          python src/main.py scrape_upcoming \
+            --sport football \
+            --date ${{ steps.dates.outputs.TODAY }} \
+            --leagues champions-league,europa-league,conference-league,euro,euro-qualification,nations-league,world-cup,world-cup-qualification-europe,world-cup-qualification-south-america \
+            --markets 1x2 \
+            --headless \
+            --file_path data/uefa_today.json \
+            --format json \
+            --concurrency_tasks 3
+      
+      - name: Scrape UEFA - Tomorrow
+        continue-on-error: true
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          python src/main.py scrape_upcoming \
+            --sport football \
+            --date ${{ steps.dates.outputs.TOMORROW }} \
+            --leagues champions-league,europa-league,conference-league,euro,euro-qualification,nations-league,world-cup,world-cup-qualification-europe,world-cup-qualification-south-america \
+            --markets 1x2 \
+            --headless \
+            --file_path data/uefa_tomorrow.json \
+            --format json \
+            --concurrency_tasks 3
+      
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: uefa
+          path: data/*.json
+          retention-days: 1
+
+  # ============================================
+  # AMERICAS
+  # ============================================
+  americas:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          pip install playwright aiohttp fake_useragent tenacity boto3 beautifulsoup4 lxml
+          playwright install chromium
+          playwright install-deps chromium
+      
+      - name: Set dates
+        id: dates
+        run: |
+          echo "TODAY=$(date -u +%Y%m%d)" >> $GITHUB_OUTPUT
+          echo "TOMORROW=$(date -u -d '+1 day' +%Y%m%d)" >> $GITHUB_OUTPUT
+      
+      - name: Scrape Americas - Today
+        continue-on-error: true
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          python src/main.py scrape_upcoming \
+            --sport football \
+            --date ${{ steps.dates.outputs.TODAY }} \
+            --leagues mls,liga-mx,serie-a-brazil,serie-b-brazil,primera-division-argentina,primera-nacional,liga-profesional-chile,liga-betplay,liga-1-peru,ligapro,copa-libertadores,copa-sudamericana,concacaf-champions-cup \
+            --markets 1x2 \
+            --headless \
+            --file_path data/americas_today.json \
+            --format json \
+            --concurrency_tasks 3
+      
+      - name: Scrape Americas - Tomorrow
+        continue-on-error: true
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          python src/main.py scrape_upcoming \
+            --sport football \
+            --date ${{ steps.dates.outputs.TOMORROW }} \
+            --leagues mls,liga-mx,serie-a-brazil,serie-b-brazil,primera-division-argentina,primera-nacional,liga-profesional-chile,liga-betplay,liga-1-peru,ligapro,copa-libertadores,copa-sudamericana,concacaf-champions-cup \
+            --markets 1x2 \
+            --headless \
+            --file_path data/americas_tomorrow.json \
+            --format json \
+            --concurrency_tasks 3
+      
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: americas
+          path: data/*.json
+          retention-days: 1
+
+  # ============================================
+  # ASIA, AFRICA & OCEANIA
+  # ============================================
+  asia-africa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          pip install playwright aiohttp fake_useragent tenacity boto3 beautifulsoup4 lxml
+          playwright install chromium
+          playwright install-deps chromium
+      
+      - name: Set dates
+        id: dates
+        run: |
+          echo "TODAY=$(date -u +%Y%m%d)" >> $GITHUB_OUTPUT
+          echo "TOMORROW=$(date -u -d '+1 day' +%Y%m%d)" >> $GITHUB_OUTPUT
+      
+      - name: Scrape Asia/Africa - Today
+        continue-on-error: true
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          python src/main.py scrape_upcoming \
+            --sport football \
+            --date ${{ steps.dates.outputs.TODAY }} \
+            --leagues j1-league,j2-league,k-league-1,k-league-2,chinese-super-league,a-league,saudi-pro-league,stars-league,uae-pro-league,premier-league-egypt,botola-pro,premier-soccer-league,caf-champions-league,afc-champions-league,indian-super-league \
+            --markets 1x2 \
+            --headless \
+            --file_path data/asia_africa_today.json \
+            --format json \
+            --concurrency_tasks 3
+      
+      - name: Scrape Asia/Africa - Tomorrow
+        continue-on-error: true
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          python src/main.py scrape_upcoming \
+            --sport football \
+            --date ${{ steps.dates.outputs.TOMORROW }} \
+            --leagues j1-league,j2-league,k-league-1,k-league-2,chinese-super-league,a-league,saudi-pro-league,stars-league,uae-pro-league,premier-league-egypt,botola-pro,premier-soccer-league,caf-champions-league,afc-champions-league,indian-super-league \
+            --markets 1x2 \
+            --headless \
+            --file_path data/asia_africa_tomorrow.json \
+            --format json \
+            --concurrency_tasks 3
+      
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: asia-africa
+          path: data/*.json
+          retention-days: 1
+
+  # ============================================
+  # MERGE ALL RESULTS
+  # ============================================
+  merge:
+    needs: [europe-major, europe-secondary, uefa, americas, asia-africa]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      
+      - name: Merge all odds files
         run: |
           mkdir -p data
-          python src/main.py scrape_upcoming \
-            --sport football \
-            --date ${{ steps.dates.outputs.today }} \
-            --markets 1x2 \
-            --headless \
-            --file_path data/today.json \
-            --format json \
-            --concurrency_tasks 2
+          python << 'EOF'
+import json
+import os
+from datetime import datetime
+
+all_matches = []
+seen = set()
+
+# Walk through all artifact directories
+for root, dirs, files in os.walk('artifacts'):
+    for file in files:
+        if file.endswith('.json'):
+            filepath = os.path.join(root, file)
+            print(f"Processing: {filepath}")
+            try:
+                with open(filepath, 'r') as f:
+                    data = json.load(f)
+                
+                # Handle different data structures
+                matches = []
+                if isinstance(data, list):
+                    matches = data
+                elif isinstance(data, dict):
+                    if 'matches' in data:
+                        matches = data['matches']
+                    elif 'data' in data:
+                        matches = data['data']
+                    else:
+                        matches = [data]
+                
+                for match in matches:
+                    if not isinstance(match, dict):
+                        continue
+                    
+                    # Extract team names
+                    home = match.get('home_team') or match.get('home') or match.get('homeTeam', '')
+                    away = match.get('away_team') or match.get('away') or match.get('awayTeam', '')
+                    
+                    if not home or not away:
+                        continue
+                    
+                    # Create unique key
+                    key = f"{home}|{away}".lower()
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    
+                    # Extract odds
+                    odds = {}
+                    if 'odds' in match:
+                        odds = match['odds']
+                    elif 'markets' in match:
+                        markets = match['markets']
+                        if isinstance(markets, dict):
+                            odds = markets
+                        elif isinstance(markets, list):
+                            for m in markets:
+                                if m.get('name') == '1X2' or m.get('type') == 'h2h':
+                                    odds['h2h'] = m.get('odds', {})
+                    elif 'bookmakers' in match:
+                        for bm in match.get('bookmakers', []):
+                            for market in bm.get('markets', []):
+                                if market.get('key') == 'h2h':
+                                    outcomes = market.get('outcomes', [])
+                                    h2h = {}
+                                    for o in outcomes:
+                                        if o.get('name') == home:
+                                            h2h['home'] = o.get('price')
+                                        elif o.get('name') == away:
+                                            h2h['away'] = o.get('price')
+                                        elif o.get('name') == 'Draw':
+                                            h2h['draw'] = o.get('price')
+                                    if h2h:
+                                        odds['h2h'] = h2h
+                                        break
+                            if odds:
+                                break
+                    
+                    # Also check for direct odds fields
+                    if not odds:
+                        if all(k in match for k in ['home_odds', 'draw_odds', 'away_odds']):
+                            odds['h2h'] = {
+                                'home': match['home_odds'],
+                                'draw': match['draw_odds'],
+                                'away': match['away_odds']
+                            }
+                        elif '1' in match and 'X' in match and '2' in match:
+                            odds['h2h'] = {
+                                'home': match['1'],
+                                'draw': match['X'],
+                                'away': match['2']
+                            }
+                    
+                    # Get commence time
+                    commence = match.get('commence_time') or match.get('date') or match.get('datetime') or match.get('start_time', '')
+                    
+                    # Get league
+                    league = match.get('league') or match.get('competition') or match.get('tournament', 'Unknown')
+                    
+                    normalized = {
+                        'home_team': home,
+                        'away_team': away,
+                        'commence_time': commence,
+                        'league': league,
+                        'markets': odds if odds else {'h2h': {}}
+                    }
+                    
+                    all_matches.append(normalized)
+                    
+            except Exception as e:
+                print(f"Error processing {filepath}: {e}")
+                continue
+
+# Sort by commence time
+all_matches.sort(key=lambda x: x.get('commence_time', ''))
+
+output = {
+    'updated_at': datetime.utcnow().isoformat() + 'Z',
+    'source': 'oddsharvester',
+    'match_count': len(all_matches),
+    'matches': all_matches
+}
+
+os.makedirs('data', exist_ok=True)
+with open('data/odds.json', 'w') as f:
+    json.dump(output, f, indent=2)
+
+print(f"\n✅ Merged {len(all_matches)} unique matches")
+EOF
       
-      - name: Scrape tomorrow's matches
-        continue-on-error: true
-        env:
-          PYTHONPATH: ${{ github.workspace }}
-        run: |
-          python src/main.py scrape_upcoming \
-            --sport football \
-            --date ${{ steps.dates.outputs.tomorrow }} \
-            --markets 1x2 \
-            --headless \
-            --file_path data/tomorrow.json \
-            --format json \
-            --concurrency_tasks 2
-      
-      - name: Merge and format output
-        run: |
-          python scripts/merge_odds.py
-      
-      - name: Upload to Gist
+      - name: Upload odds to Gist
         uses: exuanbo/actions-deploy-gist@v1
         with:
           token: ${{ secrets.GIST_TOKEN }}
